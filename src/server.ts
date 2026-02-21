@@ -1,12 +1,14 @@
 import { buildApp } from "./app.js";
 
-const app = buildApp();
-
 const start = async () => {
   try {
-    await app.listen({ port: 3000, host: "0.0.0.0" });
+    const app = await buildApp();
+    await app.listen({
+      port: app.config.PORT,
+      host: app.config.HOST,
+    });
   } catch (err) {
-    app.log.error(err);
+    console.error(err);
     process.exit(1);
   }
 };
