@@ -1,5 +1,6 @@
 import fp from "fastify-plugin";
 import fastifyJwt from "@fastify/jwt";
+import { createPublicKey } from "node:crypto";
 import { type FastifyInstance, type FastifyRequest, type FastifyReply } from "fastify";
 
 declare module "fastify" {
@@ -32,8 +33,28 @@ declare module "fastify" {
 
 export default fp(
   async function authPlugin(fastify: FastifyInstance) {
+    // Fetch JWKS from Supabase to detect signing algorithm
+    // Newer Supabase versions sign JWTs with ES256 instead of HS256
+    let jwtSecret: string | { public: string; private: string } = fastify.config.SUPABASE_JWT_SECRET;
+    try {
+      const jwksUrl = `${fastify.config.SUPABASE_URL}/auth/v1/.well-known/jwks.json`;
+      const response = await fetch(jwksUrl);
+      const jwks = (await response.json()) as { keys?: Array<{ alg?: string }> };
+      const es256Jwk = jwks.keys?.find((k) => k.alg === "ES256");
+      if (es256Jwk) {
+        const publicPem = createPublicKey({ key: es256Jwk, format: "jwk" }).export({
+          type: "spki",
+          format: "pem",
+        }) as string;
+        jwtSecret = { public: publicPem, private: fastify.config.SUPABASE_JWT_SECRET };
+        fastify.log.info("Using ES256 public key from Supabase JWKS for JWT verification");
+      }
+    } catch {
+      fastify.log.warn("Could not fetch JWKS from Supabase — using HS256 for JWT verification");
+    }
+
     await fastify.register(fastifyJwt, {
-      secret: fastify.config.SUPABASE_JWT_SECRET,
+      secret: jwtSecret,
     });
 
     fastify.decorate("authenticate", async function (request: FastifyRequest, reply: FastifyReply) {
