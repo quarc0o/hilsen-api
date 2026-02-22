@@ -63,7 +63,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (!card) {
         return notFound(reply, "Card not found");
       }
-      if (card.user_id !== request.userId) {
+      if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
       return card;
@@ -86,7 +86,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (!card) {
         return notFound(reply, "Card not found");
       }
-      if (card.user_id !== request.userId) {
+      if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
       return updateCard(fastify.supabase, request.params.id, request.body);
@@ -105,7 +105,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (!card) {
         return notFound(reply, "Card not found");
       }
-      if (card.user_id !== request.userId) {
+      if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
       await deleteCard(fastify.supabase, request.params.id);

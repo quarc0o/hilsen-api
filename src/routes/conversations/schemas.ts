@@ -13,8 +13,9 @@ export const MessageSchema = Type.Object({
   conversation_id: Type.String({ format: "uuid" }),
   sender_id: Type.String({ format: "uuid" }),
   card_send_id: Type.Union([Type.String({ format: "uuid" }), Type.Null()]),
-  content: Type.Union([Type.String(), Type.Null()]),
+  text_content: Type.Union([Type.String(), Type.Null()]),
   created_at: Type.String(),
+  read_at: Type.Union([Type.String(), Type.Null()]),
 });
 
 export type Message = Static<typeof MessageSchema>;

@@ -29,20 +29,22 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (!card) {
         return notFound(reply, "Card not found");
       }
-      if (card.user_id !== request.userId) {
+      if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
       if (card.status !== "ready") {
         return badRequest(reply, "Card must be in 'ready' status to send");
       }
 
-      const send = await sendCard(
-        fastify.supabase,
-        request.userId,
-        request.params.id,
-        request.body.recipient_phone,
-        request.body.scheduled_at,
-      );
+      if (!request.body.recipient_phone && !request.body.recipient_email) {
+        return badRequest(reply, "Either recipient_phone or recipient_email is required");
+      }
+
+      const send = await sendCard(fastify.supabase, request.userId, request.params.id, {
+        recipientPhone: request.body.recipient_phone,
+        recipientEmail: request.body.recipient_email,
+        scheduledAt: request.body.scheduled_at,
+      });
 
       return reply.code(201).send(send);
     },

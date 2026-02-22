@@ -1,0 +1,19 @@
+meta {
+  name: List Templates
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{host}}/templates
+  body: none
+  auth: none
+}
+
+params:query {
+  ~category: greeting
+  ~tags: birthday
+  ~search: happy
+  ~limit: 10
+  ~offset: 0
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Send Message
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}/conversations/:id/messages
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id:
+}
+
+body:json {
+  {
+    "content": "Hello!"
+  }
+}

@@ -1,0 +1,17 @@
+meta {
+  name: Create Card
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{host}}/cards
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "template_id": ""
+  }
+}

@@ -20,7 +20,7 @@ describe("Card routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/cards",
-        payload: { body: "Hello!" },
+        payload: { template_id: "00000000-0000-0000-0000-000000000000" },
       });
 
       expect(response.statusCode).toBe(401);

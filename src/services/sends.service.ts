@@ -5,14 +5,22 @@ export async function sendCard(
   supabase: SupabaseClient,
   senderId: string,
   cardId: string,
-  recipientPhone: string,
-  scheduledAt?: string,
+  options: { recipientPhone?: string; recipientEmail?: string; scheduledAt?: string },
 ) {
-  // 1. Resolve recipient (find or create lazy user)
-  const { user: recipient } = await findOrCreateUserByPhone(supabase, recipientPhone);
+  const { recipientPhone, recipientEmail, scheduledAt } = options;
+
+  // 1. Resolve recipient if phone provided
+  let recipientId: string | null = null;
+  if (recipientPhone) {
+    const { user: recipient } = await findOrCreateUserByPhone(supabase, recipientPhone);
+    recipientId = recipient.id;
+  }
 
   // 2. Find or create conversation between sender and recipient
-  const conversationId = await findOrCreateConversation(supabase, senderId, recipient.id);
+  let conversationId: string | null = null;
+  if (recipientId) {
+    conversationId = await findOrCreateConversation(supabase, senderId, recipientId);
+  }
 
   // 3. Create the card_send record
   const status = scheduledAt ? "scheduled" : "sent";
@@ -21,7 +29,9 @@ export async function sendCard(
     .insert({
       card_id: cardId,
       sender_id: senderId,
-      recipient_id: recipient.id,
+      recipient_id: recipientId,
+      recipient_phone: recipientPhone ?? null,
+      recipient_email: recipientEmail ?? null,
       conversation_id: conversationId,
       status,
       scheduled_at: scheduledAt ?? null,
@@ -32,16 +42,21 @@ export async function sendCard(
 
   if (sendError) throw sendError;
 
-  // 4. Insert a message into the conversation
-  if (!scheduledAt) {
+  // 4. Insert a message into the conversation (if immediate send)
+  if (!scheduledAt && conversationId) {
     const { error: msgError } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: senderId,
       card_send_id: send.id,
-      content: null,
     });
 
     if (msgError) throw msgError;
+
+    // Update conversation timestamp
+    await supabase
+      .from("conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", conversationId);
   }
 
   return send;
@@ -96,7 +111,7 @@ export async function getMySends(supabase: SupabaseClient, userId: string) {
   const { data, error } = await supabase
     .from("card_sends")
     .select("*")
-    .eq("sender_id", userId)
+    .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -127,7 +142,6 @@ export async function processScheduledSends(supabase: SupabaseClient) {
   const processed = [];
 
   for (const send of dueSends) {
-    // Mark as sent
     const { error: updateError } = await supabase
       .from("card_sends")
       .update({ status: "sent", sent_at: new Date().toISOString() })
@@ -135,13 +149,19 @@ export async function processScheduledSends(supabase: SupabaseClient) {
 
     if (updateError) continue;
 
-    // Insert the message
-    await supabase.from("messages").insert({
-      conversation_id: send.conversation_id,
-      sender_id: send.sender_id,
-      card_send_id: send.id,
-      content: null,
-    });
+    // Insert the message into the conversation
+    if (send.conversation_id) {
+      await supabase.from("messages").insert({
+        conversation_id: send.conversation_id,
+        sender_id: send.sender_id,
+        card_send_id: send.id,
+      });
+
+      await supabase
+        .from("conversations")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", send.conversation_id);
+    }
 
     processed.push(send.id);
   }

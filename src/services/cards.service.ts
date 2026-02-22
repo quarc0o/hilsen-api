@@ -3,17 +3,13 @@ import { type SupabaseClient } from "@supabase/supabase-js";
 export async function createCard(
   supabase: SupabaseClient,
   userId: string,
-  card: {
-    template_id?: string;
-    body?: string;
-    media_url?: string;
-  },
+  card: { template_id: string },
 ) {
   const { data, error } = await supabase
-    .from("cards")
+    .from("greeting_cards")
     .insert({
-      user_id: userId,
-      ...card,
+      creator_id: userId,
+      template_id: card.template_id,
       status: "draft",
     })
     .select()
@@ -24,7 +20,11 @@ export async function createCard(
 }
 
 export async function getCardById(supabase: SupabaseClient, cardId: string) {
-  const { data, error } = await supabase.from("cards").select("*").eq("id", cardId).single();
+  const { data, error } = await supabase
+    .from("greeting_cards")
+    .select("*")
+    .eq("id", cardId)
+    .single();
 
   if (error && error.code === "PGRST116") {
     return null;
@@ -36,9 +36,9 @@ export async function getCardById(supabase: SupabaseClient, cardId: string) {
 
 export async function getMyCards(supabase: SupabaseClient, userId: string) {
   const { data, error } = await supabase
-    .from("cards")
+    .from("greeting_cards")
     .select("*")
-    .eq("user_id", userId)
+    .eq("creator_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -49,13 +49,14 @@ export async function updateCard(
   supabase: SupabaseClient,
   cardId: string,
   updates: Partial<{
-    body: string;
-    media_url: string | null;
+    message: string;
+    card_backside_url: string | null;
+    overlay_items: unknown;
     status: "draft" | "ready";
   }>,
 ) {
   const { data, error } = await supabase
-    .from("cards")
+    .from("greeting_cards")
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq("id", cardId)
     .select()
@@ -70,7 +71,7 @@ export async function updateCard(
 }
 
 export async function deleteCard(supabase: SupabaseClient, cardId: string) {
-  const { error } = await supabase.from("cards").delete().eq("id", cardId);
+  const { error } = await supabase.from("greeting_cards").delete().eq("id", cardId);
 
   if (error) throw error;
 }

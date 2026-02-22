@@ -24,8 +24,8 @@ describe("Admin template routes", () => {
         payload: {
           slug: "test",
           title: "Test",
-          body_template: "Hello {name}",
           category: "general",
+          image_url: "https://example.com/image.png",
         },
       });
 

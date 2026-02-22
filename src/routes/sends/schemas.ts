@@ -2,27 +2,32 @@ import { Type, type Static } from "@sinclair/typebox";
 
 export const SendStatus = Type.Union([
   Type.Literal("pending"),
+  Type.Literal("scheduled"),
   Type.Literal("sent"),
   Type.Literal("delivered"),
-  Type.Literal("scheduled"),
+  Type.Literal("opened"),
 ]);
 
 export const CardSendSchema = Type.Object({
   id: Type.String({ format: "uuid" }),
   card_id: Type.String({ format: "uuid" }),
   sender_id: Type.String({ format: "uuid" }),
-  recipient_id: Type.String({ format: "uuid" }),
-  conversation_id: Type.String({ format: "uuid" }),
+  recipient_id: Type.Union([Type.String({ format: "uuid" }), Type.Null()]),
+  recipient_phone: Type.Union([Type.String(), Type.Null()]),
+  recipient_email: Type.Union([Type.String(), Type.Null()]),
   status: SendStatus,
   scheduled_at: Type.Union([Type.String(), Type.Null()]),
   sent_at: Type.Union([Type.String(), Type.Null()]),
+  opened_at: Type.Union([Type.String(), Type.Null()]),
+  conversation_id: Type.Union([Type.String({ format: "uuid" }), Type.Null()]),
   created_at: Type.String(),
 });
 
 export type CardSend = Static<typeof CardSendSchema>;
 
 export const SendCardBodySchema = Type.Object({
-  recipient_phone: Type.String(),
+  recipient_phone: Type.Optional(Type.String()),
+  recipient_email: Type.Optional(Type.String()),
   scheduled_at: Type.Optional(Type.String()),
 });
 

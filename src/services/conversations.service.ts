@@ -43,7 +43,7 @@ export async function sendMessage(
     .insert({
       conversation_id: conversationId,
       sender_id: senderId,
-      content,
+      text_content: content,
     })
     .select()
     .single();
@@ -64,14 +64,12 @@ export async function isConversationParticipant(
   conversationId: string,
   userId: string,
 ): Promise<boolean> {
-  const { data, error } = await supabase
+  const { count, error } = await supabase
     .from("conversation_participants")
-    .select("id")
+    .select("*", { count: "exact", head: true })
     .eq("conversation_id", conversationId)
-    .eq("user_id", userId)
-    .single();
+    .eq("user_id", userId);
 
-  if (error && error.code === "PGRST116") return false;
   if (error) throw error;
-  return !!data;
+  return (count ?? 0) > 0;
 }

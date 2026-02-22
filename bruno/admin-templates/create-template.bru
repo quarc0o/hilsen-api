@@ -1,0 +1,20 @@
+meta {
+  name: Create Template
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{host}}/admin/templates
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "slug": "happy-birthday",
+    "title": "Happy Birthday",
+    "category": "birthday",
+    "image_url": "https://example.com/image.png"
+  }
+}

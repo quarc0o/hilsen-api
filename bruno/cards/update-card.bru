@@ -1,0 +1,22 @@
+meta {
+  name: Update Card
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{host}}/cards/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id:
+}
+
+body:json {
+  {
+    "message": "Happy birthday!",
+    "status": "ready"
+  }
+}

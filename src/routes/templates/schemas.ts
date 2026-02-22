@@ -2,12 +2,16 @@ import { Type, type Static } from "@sinclair/typebox";
 
 export const TemplateSchema = Type.Object({
   id: Type.String({ format: "uuid" }),
-  slug: Type.String(),
   title: Type.String(),
-  body_template: Type.String(),
+  subtitle: Type.Union([Type.String(), Type.Null()]),
+  description: Type.Union([Type.String(), Type.Null()]),
   category: Type.String(),
-  image_url: Type.Union([Type.String(), Type.Null()]),
-  is_active: Type.Boolean(),
+  tags: Type.Union([Type.Array(Type.String()), Type.Null()]),
+  slug: Type.String(),
+  image_url: Type.String(),
+  is_premium: Type.Boolean(),
+  is_published: Type.Boolean(),
+  sort_order: Type.Number(),
   created_at: Type.String(),
   updated_at: Type.String(),
 });
@@ -23,6 +27,8 @@ export type TemplateCategory = Static<typeof TemplateCategorySchema>;
 
 export const GetTemplatesQuerySchema = Type.Object({
   category: Type.Optional(Type.String()),
+  tags: Type.Optional(Type.String()),
+  search: Type.Optional(Type.String()),
   limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
   offset: Type.Optional(Type.Number({ minimum: 0 })),
 });

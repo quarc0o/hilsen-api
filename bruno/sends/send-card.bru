@@ -1,0 +1,21 @@
+meta {
+  name: Send Card
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{host}}/cards/:id/send
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id:
+}
+
+body:json {
+  {
+    "recipient_email": "recipient@example.com"
+  }
+}

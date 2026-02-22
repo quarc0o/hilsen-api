@@ -1,0 +1,22 @@
+meta {
+  name: Update Template
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{host}}/admin/templates/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id:
+}
+
+body:json {
+  {
+    "title": "Updated Title",
+    "is_published": true
+  }
+}

@@ -29,11 +29,11 @@ export async function getUserBySupabaseId(supabase: SupabaseClient, supabaseId: 
 export async function updateUser(
   supabase: SupabaseClient,
   userId: string,
-  updates: Partial<{ display_name: string; avatar_url: string | null }>,
+  updates: Partial<{ first_name: string; last_name: string; email: string | null }>,
 ) {
   const { data, error } = await supabase
     .from("users")
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update(updates)
     .eq("id", userId)
     .select()
     .single();
@@ -49,11 +49,10 @@ export async function deleteUser(supabase: SupabaseClient, userId: string) {
 }
 
 export async function findOrCreateUserByPhone(supabase: SupabaseClient, phone: string) {
-  // Check if user exists with this phone
   const { data: existing, error: findError } = await supabase
     .from("users")
     .select("*")
-    .eq("phone", phone)
+    .eq("phone_number", phone)
     .single();
 
   if (existing) return { user: existing, created: false };
@@ -62,10 +61,10 @@ export async function findOrCreateUserByPhone(supabase: SupabaseClient, phone: s
     throw findError;
   }
 
-  // Create a lazy user (no supabase_id yet)
+  // Create a lazy user (no supabase_id yet — handle_new_user trigger links on signup)
   const { data: created, error: createError } = await supabase
     .from("users")
-    .insert({ phone, supabase_id: `lazy:${phone}` })
+    .insert({ phone_number: phone })
     .select()
     .single();
 
@@ -73,20 +72,13 @@ export async function findOrCreateUserByPhone(supabase: SupabaseClient, phone: s
   return { user: created, created: true };
 }
 
-export async function matchLazyUser(supabase: SupabaseClient, supabaseId: string, phone: string) {
-  // Find a lazy user with this phone and link to the real supabase_id
-  const { data, error } = await supabase
-    .from("users")
-    .update({ supabase_id: supabaseId, updated_at: new Date().toISOString() })
-    .eq("phone", phone)
-    .like("supabase_id", "lazy:%")
-    .select()
-    .single();
-
-  if (error && error.code === "PGRST116") {
-    return null;
-  }
+export async function matchLazyUser(supabase: SupabaseClient, userId: string, phone: string) {
+  // Link card_sends that have recipient_phone matching but no recipient_id
+  const { error } = await supabase
+    .from("card_sends")
+    .update({ recipient_id: userId })
+    .eq("recipient_phone", phone)
+    .is("recipient_id", null);
 
   if (error) throw error;
-  return data;
 }
