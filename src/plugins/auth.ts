@@ -67,15 +67,59 @@ export default fp(
 
       const supabaseId = request.user.sub;
 
-      const { data: user, error } = await fastify.supabase
+      // Look up user by supabase_id
+      let { data: user, error } = await fastify.supabase
         .from("users")
         .select("id")
         .eq("supabase_id", supabaseId)
         .single();
 
+      // If no user record exists, auto-create one for this authenticated user
       if (error || !user) {
-        reply.code(401).send({ error: "User not found" });
-        return;
+        // Get the phone number from Supabase auth to match lazy users
+        const { data: authUser } = await fastify.supabase.auth.admin.getUserById(supabaseId);
+        const phone = authUser?.user?.phone ?? null;
+
+        // Check if a lazy user (created via invite) exists with this phone
+        if (phone) {
+          const { data: lazyUser } = await fastify.supabase
+            .from("users")
+            .select("id")
+            .eq("phone_number", phone)
+            .is("supabase_id", null)
+            .single();
+
+          if (lazyUser) {
+            // Link the lazy user to this Supabase account
+            const { data: linked, error: linkError } = await fastify.supabase
+              .from("users")
+              .update({ supabase_id: supabaseId })
+              .eq("id", lazyUser.id)
+              .select("id")
+              .single();
+
+            if (!linkError && linked) {
+              request.userId = linked.id;
+              request.supabaseId = supabaseId;
+              return;
+            }
+          }
+        }
+
+        // No lazy user — create a new user record
+        const { data: newUser, error: createError } = await fastify.supabase
+          .from("users")
+          .insert({ supabase_id: supabaseId, phone_number: phone })
+          .select("id")
+          .single();
+
+        if (createError || !newUser) {
+          fastify.log.error({ createError }, "Failed to auto-create user record");
+          reply.code(401).send({ error: "User not found" });
+          return;
+        }
+
+        user = newUser;
       }
 
       request.userId = user.id;

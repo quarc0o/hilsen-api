@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import fastifyEnv from "@fastify/env";
 import fastifyCors from "@fastify/cors";
+import fastifySwagger from "@fastify/swagger";
+import fastifySwaggerUi from "@fastify/swagger-ui";
 import { buildEnvOptions } from "./config/env.js";
 import supabasePlugin from "./plugins/supabase.js";
 import authPlugin from "./plugins/auth.js";
@@ -21,6 +23,28 @@ export async function buildApp(envOverrides?: Record<string, string>) {
 
   // Config
   await app.register(fastifyEnv, buildEnvOptions(envOverrides));
+
+  // Swagger
+  await app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: "Hilsen API",
+        version: "1.0.0",
+      },
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "JWT",
+          },
+        },
+      },
+    },
+  });
+  await app.register(fastifySwaggerUi, {
+    routePrefix: "/docs",
+  });
 
   // CORS
   await app.register(fastifyCors);
