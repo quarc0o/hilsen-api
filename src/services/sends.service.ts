@@ -22,8 +22,7 @@ export async function sendCard(
     conversationId = await findOrCreateConversation(supabase, senderId, recipientId);
   }
 
-  // 3. Create the card_send record
-  const status = scheduledAt ? "scheduled" : "sent";
+  // 3. Create the card_send record (always "scheduled" — the worker moves it to "sent")
   const { data: send, error: sendError } = await supabase
     .from("card_sends")
     .insert({
@@ -33,31 +32,14 @@ export async function sendCard(
       recipient_phone: recipientPhone ?? null,
       recipient_email: recipientEmail ?? null,
       conversation_id: conversationId,
-      status,
-      scheduled_at: scheduledAt ?? null,
-      sent_at: scheduledAt ? null : new Date().toISOString(),
+      status: "scheduled",
+      scheduled_at: scheduledAt ?? new Date().toISOString(),
+      sent_at: null,
     })
     .select()
     .single();
 
   if (sendError) throw sendError;
-
-  // 4. Insert a message into the conversation (if immediate send)
-  if (!scheduledAt && conversationId) {
-    const { error: msgError } = await supabase.from("messages").insert({
-      conversation_id: conversationId,
-      sender_id: senderId,
-      card_send_id: send.id,
-    });
-
-    if (msgError) throw msgError;
-
-    // Update conversation timestamp
-    await supabase
-      .from("conversations")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", conversationId);
-  }
 
   return send;
 }
