@@ -12,6 +12,7 @@ export interface EnvConfig {
   TWILIO_AUTH_TOKEN: string;
   TWILIO_SENDER_ID: string;
   APP_BASE_URL: string;
+  DIRECTUS_URL: string;
 }
 
 declare module "fastify" {
@@ -30,6 +31,7 @@ export const envSchema = {
     "TWILIO_AUTH_TOKEN",
     "TWILIO_SENDER_ID",
     "APP_BASE_URL",
+    "DIRECTUS_URL",
   ],
   properties: {
     PORT: {
@@ -63,6 +65,9 @@ export const envSchema = {
       type: "string" as const,
     },
     APP_BASE_URL: {
+      type: "string" as const,
+    },
+    DIRECTUS_URL: {
       type: "string" as const,
     },
   },

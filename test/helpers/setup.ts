@@ -14,6 +14,7 @@ const TEST_ENV: Record<string, string> = {
   TWILIO_AUTH_TOKEN: "test-auth-token",
   TWILIO_SENDER_ID: "Hilsen",
   APP_BASE_URL: "http://localhost:3001",
+  DIRECTUS_URL: "https://directus.quarcoo.no",
 };
 
 export async function createTestApp(envOverrides?: Record<string, string>) {

@@ -4,16 +4,18 @@ import {
   TemplateSchema,
   TemplateCategorySchema,
   GetTemplatesQuerySchema,
-  TemplateSlugParamsSchema,
+  TemplateIdParamsSchema,
 } from "./schemas.js";
 import {
   getTemplates,
   getTemplateCategories,
-  getTemplateBySlug,
+  getTemplateById,
 } from "../../services/templates.service.js";
 import { notFound } from "../../lib/errors.js";
 
 const templateRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
+  const directusUrl = fastify.config.DIRECTUS_URL;
+
   fastify.get(
     "/",
     {
@@ -25,8 +27,8 @@ const templateRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async (request) => {
-      const { category, limit, offset } = request.query;
-      return getTemplates(fastify.supabase, { category, limit, offset });
+      const { category, search, limit, offset } = request.query;
+      return getTemplates(directusUrl, { category, search, limit, offset });
     },
   );
 
@@ -40,22 +42,22 @@ const templateRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async () => {
-      return getTemplateCategories(fastify.supabase);
+      return getTemplateCategories(directusUrl);
     },
   );
 
   fastify.get(
-    "/:slug",
+    "/:id",
     {
       schema: {
-        params: TemplateSlugParamsSchema,
+        params: TemplateIdParamsSchema,
         response: {
           200: TemplateSchema,
         },
       },
     },
     async (request, reply) => {
-      const template = await getTemplateBySlug(fastify.supabase, request.params.slug);
+      const template = await getTemplateById(directusUrl, request.params.id);
       if (!template) {
         return notFound(reply, "Template not found");
       }

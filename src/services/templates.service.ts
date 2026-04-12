@@ -1,134 +1,95 @@
-import { type SupabaseClient } from "@supabase/supabase-js";
+const COLLECTION = "Greeting_Cards";
+
+interface DirectusTemplate {
+  id: string;
+  card_title: string;
+  categories: string[];
+  image_url: string;
+}
+
+export interface Template {
+  id: string;
+  card_title: string;
+  categories: string[];
+  image_url: string;
+}
+
+function mapTemplate(directusUrl: string, item: DirectusTemplate): Template {
+  return {
+    id: item.id,
+    card_title: item.card_title,
+    categories: item.categories ?? [],
+    image_url: `${directusUrl}/assets/${item.image_url}`,
+  };
+}
 
 export async function getTemplates(
-  supabase: SupabaseClient,
+  directusUrl: string,
   options: {
     category?: string;
-    tags?: string;
     search?: string;
     limit?: number;
     offset?: number;
   } = {},
 ) {
-  const { category, tags, search, limit = 20, offset = 0 } = options;
+  const { category, search, limit = 20, offset = 0 } = options;
 
-  let query = supabase
-    .from("card_templates")
-    .select("*")
-    .eq("is_published", true)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
 
   if (category) {
-    query = query.eq("category", category);
-  }
-
-  if (tags) {
-    query = query.contains("tags", [tags]);
+    params.set("filter[categories][_contains]", category);
   }
 
   if (search) {
-    query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+    params.set("filter[card_title][_icontains]", search);
   }
 
-  const { data, error } = await query;
+  const res = await fetch(`${directusUrl}/items/${COLLECTION}?${params}`);
+  if (!res.ok) {
+    throw new Error(`Directus error: ${res.status} ${res.statusText}`);
+  }
 
-  if (error) throw error;
-  return data;
+  const { data } = (await res.json()) as { data: DirectusTemplate[] };
+  return (data ?? []).map((item) => mapTemplate(directusUrl, item));
 }
 
-export async function getTemplateCategories(supabase: SupabaseClient) {
-  const { data, error } = await supabase
-    .from("card_templates")
-    .select("category")
-    .eq("is_published", true);
+export async function getTemplateCategories(directusUrl: string) {
+  const params = new URLSearchParams({
+    "fields[]": "categories",
+    limit: "-1",
+  });
 
-  if (error) throw error;
+  const res = await fetch(`${directusUrl}/items/${COLLECTION}?${params}`);
+  if (!res.ok) {
+    throw new Error(`Directus error: ${res.status} ${res.statusText}`);
+  }
 
-  const counts = (data ?? []).reduce(
-    (acc: Record<string, number>, row: { category: string }) => {
-      acc[row.category] = (acc[row.category] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
+  const { data } = (await res.json()) as { data: Pick<DirectusTemplate, "categories">[] };
 
-  return Object.entries(counts).map(([category, count]) => ({
-    category,
-    count,
-  }));
+  const counts: Record<string, number> = {};
+  for (const item of data ?? []) {
+    for (const cat of item.categories ?? []) {
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+  }
+
+  return Object.entries(counts).map(([category, count]) => ({ category, count }));
 }
 
-export async function getTemplateBySlug(supabase: SupabaseClient, slug: string) {
-  const { data, error } = await supabase
-    .from("card_templates")
-    .select("*")
-    .eq("slug", slug)
-    .eq("is_published", true)
-    .single();
+export async function getTemplateById(directusUrl: string, id: string) {
+  const res = await fetch(`${directusUrl}/items/${COLLECTION}/${id}`);
 
-  if (error && error.code === "PGRST116") {
+  if (res.status === 403 || res.status === 404) {
     return null;
   }
 
-  if (error) throw error;
-  return data;
-}
-
-export async function createTemplate(
-  supabase: SupabaseClient,
-  template: {
-    slug: string;
-    title: string;
-    category: string;
-    image_url: string;
-    subtitle?: string | null;
-    description?: string | null;
-    tags?: string[];
-    is_premium?: boolean;
-    sort_order?: number;
-  },
-) {
-  const { data, error } = await supabase.from("card_templates").insert(template).select().single();
-
-  if (error) throw error;
-  return data;
-}
-
-export async function updateTemplate(
-  supabase: SupabaseClient,
-  id: string,
-  updates: Partial<{
-    slug: string;
-    title: string;
-    subtitle: string | null;
-    description: string | null;
-    category: string;
-    tags: string[];
-    image_url: string;
-    is_premium: boolean;
-    is_published: boolean;
-    sort_order: number;
-  }>,
-) {
-  const { data, error } = await supabase
-    .from("card_templates")
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error && error.code === "PGRST116") {
-    return null;
+  if (!res.ok) {
+    throw new Error(`Directus error: ${res.status} ${res.statusText}`);
   }
 
-  if (error) throw error;
-  return data;
-}
-
-export async function deleteTemplate(supabase: SupabaseClient, id: string) {
-  const { error } = await supabase.from("card_templates").delete().eq("id", id);
-
-  if (error) throw error;
+  const { data } = (await res.json()) as { data: DirectusTemplate };
+  return mapTemplate(directusUrl, data);
 }
