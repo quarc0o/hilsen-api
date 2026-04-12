@@ -8,6 +8,10 @@ export interface EnvConfig {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   SUPABASE_JWT_SECRET: string;
+  TWILIO_ACCOUNT_SID: string;
+  TWILIO_AUTH_TOKEN: string;
+  TWILIO_SENDER_ID: string;
+  APP_BASE_URL: string;
 }
 
 declare module "fastify" {
@@ -18,7 +22,15 @@ declare module "fastify" {
 
 export const envSchema = {
   type: "object" as const,
-  required: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_JWT_SECRET"],
+  required: [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_JWT_SECRET",
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN",
+    "TWILIO_SENDER_ID",
+    "APP_BASE_URL",
+  ],
   properties: {
     PORT: {
       type: "number" as const,
@@ -39,6 +51,18 @@ export const envSchema = {
       type: "string" as const,
     },
     SUPABASE_JWT_SECRET: {
+      type: "string" as const,
+    },
+    TWILIO_ACCOUNT_SID: {
+      type: "string" as const,
+    },
+    TWILIO_AUTH_TOKEN: {
+      type: "string" as const,
+    },
+    TWILIO_SENDER_ID: {
+      type: "string" as const,
+    },
+    APP_BASE_URL: {
       type: "string" as const,
     },
   },

@@ -10,6 +10,10 @@ const TEST_ENV: Record<string, string> = {
   SUPABASE_URL: "http://localhost:54321",
   SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
   SUPABASE_JWT_SECRET: TEST_JWT_SECRET,
+  TWILIO_ACCOUNT_SID: "AC-test-account-sid",
+  TWILIO_AUTH_TOKEN: "test-auth-token",
+  TWILIO_SENDER_ID: "Hilsen",
+  APP_BASE_URL: "http://localhost:3001",
 };
 
 export async function createTestApp(envOverrides?: Record<string, string>) {
@@ -17,11 +21,7 @@ export async function createTestApp(envOverrides?: Record<string, string>) {
   return app;
 }
 
-export function createTestToken(payload: {
-  sub: string;
-  role?: string;
-  aud?: string;
-}) {
+export function createTestToken(payload: { sub: string; role?: string; aud?: string }) {
   return jwt.sign(
     {
       sub: payload.sub,

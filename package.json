@@ -25,7 +25,8 @@
     "@sinclair/typebox": "^0.34.48",
     "@supabase/supabase-js": "^2.97.0",
     "fastify": "^5.7.4",
-    "fastify-plugin": "^5.1.0"
+    "fastify-plugin": "^5.1.0",
+    "twilio": "^5.13.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

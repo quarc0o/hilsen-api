@@ -1,5 +1,11 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { findOrCreateUserByPhone } from "./users.service.js";
+import { sendCardSms, type TwilioConfig } from "./notifications.service.js";
+
+export interface SendsWorkerConfig {
+  twilio: TwilioConfig;
+  appBaseUrl: string;
+}
 
 export async function sendCard(
   supabase: SupabaseClient,
@@ -111,7 +117,7 @@ export async function getSendById(supabase: SupabaseClient, sendId: string) {
   return data;
 }
 
-export async function processScheduledSends(supabase: SupabaseClient) {
+export async function processScheduledSends(supabase: SupabaseClient, config: SendsWorkerConfig) {
   const { data: dueSends, error: fetchError } = await supabase
     .from("card_sends")
     .select("*")
@@ -124,6 +130,29 @@ export async function processScheduledSends(supabase: SupabaseClient) {
   const processed = [];
 
   for (const send of dueSends) {
+    // Attempt SMS delivery if recipient has a phone number
+    if (send.recipient_phone) {
+      const { data: sender } = await supabase
+        .from("users")
+        .select("first_name")
+        .eq("id", send.sender_id)
+        .single();
+
+      const senderFirstName = sender?.first_name ?? "Noen";
+      const cardViewUrl = `${config.appBaseUrl}/cards/${send.card_id}/view?send=${send.id}`;
+      const result = await sendCardSms(
+        config.twilio,
+        send.recipient_phone,
+        senderFirstName,
+        cardViewUrl,
+      );
+
+      if (!result.success) {
+        console.error(`[scheduled-sends] SMS failed for send ${send.id}: ${result.error}`);
+        continue; // stays "scheduled", retried next cycle
+      }
+    }
+
     const { error: updateError } = await supabase
       .from("card_sends")
       .update({ status: "sent", sent_at: new Date().toISOString() })
