@@ -11,22 +11,15 @@ export async function sendCard(
   supabase: SupabaseClient,
   senderId: string,
   cardId: string,
-  options: { recipientPhone?: string; recipientEmail?: string; scheduledAt?: string },
+  options: { recipientPhone: string; scheduledAt?: string },
 ) {
-  const { recipientPhone, recipientEmail, scheduledAt } = options;
+  const { recipientPhone, scheduledAt } = options;
 
-  // 1. Resolve recipient if phone provided
-  let recipientId: string | null = null;
-  if (recipientPhone) {
-    const { user: recipient } = await findOrCreateUserByPhone(supabase, recipientPhone);
-    recipientId = recipient.id;
-  }
+  // 1. Resolve recipient (always created eagerly so recipient_id is always populated)
+  const { user: recipient } = await findOrCreateUserByPhone(supabase, recipientPhone);
 
   // 2. Find or create conversation between sender and recipient
-  let conversationId: string | null = null;
-  if (recipientId) {
-    conversationId = await findOrCreateConversation(supabase, senderId, recipientId);
-  }
+  const conversationId = await findOrCreateConversation(supabase, senderId, recipient.id);
 
   // 3. Create the card_send record (always "scheduled" — the worker moves it to "sent")
   const { data: send, error: sendError } = await supabase
@@ -34,9 +27,8 @@ export async function sendCard(
     .insert({
       card_id: cardId,
       sender_id: senderId,
-      recipient_id: recipientId,
-      recipient_phone: recipientPhone ?? null,
-      recipient_email: recipientEmail ?? null,
+      recipient_id: recipient.id,
+      recipient_phone: recipientPhone,
       conversation_id: conversationId,
       status: "scheduled",
       scheduled_at: scheduledAt ?? new Date().toISOString(),
@@ -130,49 +122,58 @@ export async function processScheduledSends(supabase: SupabaseClient, config: Se
   const processed = [];
 
   for (const send of dueSends) {
-    // Attempt SMS delivery if recipient has a phone number
-    if (send.recipient_phone) {
-      const { data: sender } = await supabase
-        .from("users")
-        .select("first_name")
-        .eq("id", send.sender_id)
-        .single();
+    // 1. Idempotency check: skip message creation if one already exists for this card_send
+    if (send.conversation_id) {
+      const { data: existingMessage } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("card_send_id", send.id)
+        .maybeSingle();
 
-      const senderFirstName = sender?.first_name ?? "Noen";
-      const cardViewUrl = `${config.appBaseUrl}/cards/${send.card_id}/view?send=${send.id}`;
-      const result = await sendCardSms(
-        config.twilio,
-        send.recipient_phone,
-        senderFirstName,
-        cardViewUrl,
-      );
+      // 2. If no message exists, insert message + update conversation.updated_at
+      if (!existingMessage) {
+        await supabase.from("messages").insert({
+          conversation_id: send.conversation_id,
+          sender_id: send.sender_id,
+          card_send_id: send.id,
+        });
 
-      if (!result.success) {
-        console.error(`[scheduled-sends] SMS failed for send ${send.id}: ${result.error}`);
-        continue; // stays "scheduled", retried next cycle
+        await supabase
+          .from("conversations")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", send.conversation_id);
       }
     }
 
+    // 3. Send SMS via Twilio
+    const { data: sender } = await supabase
+      .from("users")
+      .select("first_name")
+      .eq("id", send.sender_id)
+      .single();
+
+    const senderFirstName = sender?.first_name ?? "Noen";
+    const cardViewUrl = `${config.appBaseUrl}/cards/${send.card_id}/view?send=${send.id}`;
+    const result = await sendCardSms(
+      config.twilio,
+      send.recipient_phone,
+      senderFirstName,
+      cardViewUrl,
+    );
+
+    // 4. If SMS fails, log error and continue (message already exists, won't be duplicated on retry)
+    if (!result.success) {
+      console.error(`[scheduled-sends] SMS failed for send ${send.id}: ${result.error}`);
+      continue;
+    }
+
+    // 5. Mark card_send as sent
     const { error: updateError } = await supabase
       .from("card_sends")
       .update({ status: "sent", sent_at: new Date().toISOString() })
       .eq("id", send.id);
 
     if (updateError) continue;
-
-    // Insert the message into the conversation
-    if (send.conversation_id) {
-      await supabase.from("messages").insert({
-        conversation_id: send.conversation_id,
-        sender_id: send.sender_id,
-        card_send_id: send.id,
-      });
-
-      await supabase
-        .from("conversations")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", send.conversation_id);
-    }
 
     processed.push(send.id);
   }

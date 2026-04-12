@@ -8,7 +8,7 @@ import {
 } from "./schemas.js";
 import { sendCard, getMySends, getSendById } from "../../services/sends.service.js";
 import { getCardById } from "../../services/cards.service.js";
-import { notFound, forbidden, badRequest } from "../../lib/errors.js";
+import { notFound, forbidden } from "../../lib/errors.js";
 
 const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   // POST /cards/:id/send
@@ -32,13 +32,8 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
-      if (!request.body.recipient_phone && !request.body.recipient_email) {
-        return badRequest(reply, "Either recipient_phone or recipient_email is required");
-      }
-
       const send = await sendCard(fastify.supabase, request.userId, request.params.id, {
         recipientPhone: request.body.recipient_phone,
-        recipientEmail: request.body.recipient_email,
         scheduledAt: request.body.scheduled_at,
       });
 

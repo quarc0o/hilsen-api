@@ -72,13 +72,3 @@ export async function findOrCreateUserByPhone(supabase: SupabaseClient, phone: s
   return { user: created, created: true };
 }
 
-export async function matchLazyUser(supabase: SupabaseClient, userId: string, phone: string) {
-  // Link card_sends that have recipient_phone matching but no recipient_id
-  const { error } = await supabase
-    .from("card_sends")
-    .update({ recipient_id: userId })
-    .eq("recipient_phone", phone)
-    .is("recipient_id", null);
-
-  if (error) throw error;
-}
