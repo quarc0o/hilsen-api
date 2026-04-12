@@ -153,7 +153,7 @@ export async function processScheduledSends(supabase: SupabaseClient, config: Se
       .single();
 
     const senderFirstName = sender?.first_name ?? "Noen";
-    const cardViewUrl = `${config.appBaseUrl}/cards/${send.card_id}/view?send=${send.id}`;
+    const cardViewUrl = `${config.appBaseUrl}/s/${send.id}`;
     const result = await sendCardSms(
       config.twilio,
       send.recipient_phone,

@@ -57,11 +57,10 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
     },
   );
 
-  // GET /sends/:id
+  // GET /sends/:id (public — no auth required)
   fastify.get(
     "/sends/:id",
     {
-      preHandler: [fastify.authenticate],
       schema: {
         params: SendIdParamsSchema,
         response: {
@@ -73,9 +72,6 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       const send = await getSendById(fastify.supabase, request.params.id);
       if (!send) {
         return notFound(reply, "Send not found");
-      }
-      if (send.sender_id !== request.userId && send.recipient_id !== request.userId) {
-        return forbidden(reply);
       }
       return send;
     },

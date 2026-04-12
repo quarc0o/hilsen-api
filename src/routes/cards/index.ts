@@ -16,11 +16,10 @@ import {
 import { notFound, forbidden } from "../../lib/errors.js";
 
 const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
-  fastify.addHook("preHandler", fastify.authenticate);
-
   fastify.post(
     "/",
     {
+      preHandler: [fastify.authenticate],
       schema: {
         body: CreateCardBodySchema,
         response: {
@@ -37,6 +36,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.get(
     "/mine",
     {
+      preHandler: [fastify.authenticate],
       schema: {
         response: {
           200: Type.Array(CardSchema),
@@ -48,6 +48,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
     },
   );
 
+  // GET /cards/:id (public — no auth required)
   fastify.get(
     "/:id",
     {
@@ -63,9 +64,6 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (!card) {
         return notFound(reply, "Card not found");
       }
-      if (card.creator_id !== request.userId) {
-        return forbidden(reply);
-      }
       return card;
     },
   );
@@ -73,6 +71,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.patch(
     "/:id",
     {
+      preHandler: [fastify.authenticate],
       schema: {
         params: CardIdParamsSchema,
         body: UpdateCardBodySchema,
@@ -96,6 +95,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.delete(
     "/:id",
     {
+      preHandler: [fastify.authenticate],
       schema: {
         params: CardIdParamsSchema,
       },
