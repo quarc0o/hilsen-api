@@ -52,7 +52,6 @@ export async function updateCard(
     message: string;
     card_backside_url: string | null;
     overlay_items: unknown;
-    status: "draft" | "ready";
   }>,
 ) {
   const { data, error } = await supabase

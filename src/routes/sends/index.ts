@@ -32,10 +32,6 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
-      if (card.status !== "ready") {
-        return badRequest(reply, "Card must be in 'ready' status to send");
-      }
-
       if (!request.body.recipient_phone && !request.body.recipient_email) {
         return badRequest(reply, "Either recipient_phone or recipient_email is required");
       }

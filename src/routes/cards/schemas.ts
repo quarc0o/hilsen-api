@@ -1,6 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-export const CardStatus = Type.Union([Type.Literal("draft"), Type.Literal("ready")]);
+export const CardStatus = Type.Literal("draft");
 
 export const CardSchema = Type.Object({
   id: Type.String({ format: "uuid" }),
@@ -26,7 +26,6 @@ export const UpdateCardBodySchema = Type.Object({
   message: Type.Optional(Type.String()),
   card_backside_url: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   overlay_items: Type.Optional(Type.Any()),
-  status: Type.Optional(CardStatus),
 });
 
 export type UpdateCardBody = Static<typeof UpdateCardBodySchema>;
