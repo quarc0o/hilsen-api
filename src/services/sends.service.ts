@@ -60,6 +60,44 @@ export async function getSendById(supabase: SupabaseClient, sendId: string) {
   return data;
 }
 
+export async function updateScheduledSend(
+  supabase: SupabaseClient,
+  sendId: string,
+  senderId: string,
+  scheduledAt: string,
+) {
+  const send = await getSendById(supabase, sendId);
+  if (!send) return { error: "not_found" as const };
+  if (send.sender_id !== senderId) return { error: "forbidden" as const };
+  if (send.status !== "scheduled") return { error: "already_sent" as const };
+
+  const { data, error } = await supabase
+    .from("card_sends")
+    .update({ scheduled_at: scheduledAt })
+    .eq("id", sendId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { data };
+}
+
+export async function cancelSend(
+  supabase: SupabaseClient,
+  sendId: string,
+  senderId: string,
+) {
+  const send = await getSendById(supabase, sendId);
+  if (!send) return { error: "not_found" as const };
+  if (send.sender_id !== senderId) return { error: "forbidden" as const };
+  if (send.status !== "scheduled") return { error: "already_sent" as const };
+
+  const { error } = await supabase.from("card_sends").delete().eq("id", sendId);
+
+  if (error) throw error;
+  return { success: true };
+}
+
 export async function processScheduledSends(supabase: SupabaseClient, config: SendsWorkerConfig) {
   const { data: dueSends, error: fetchError } = await supabase
     .from("card_sends")

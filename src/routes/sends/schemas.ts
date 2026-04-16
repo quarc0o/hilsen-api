@@ -42,3 +42,9 @@ export const SendIdParamsSchema = Type.Object({
 });
 
 export type SendIdParams = Static<typeof SendIdParamsSchema>;
+
+export const UpdateSendBodySchema = Type.Object({
+  scheduled_at: Type.String(),
+});
+
+export type UpdateSendBody = Static<typeof UpdateSendBodySchema>;

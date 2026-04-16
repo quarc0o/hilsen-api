@@ -5,10 +5,17 @@ import {
   SendCardBodySchema,
   SendCardParamsSchema,
   SendIdParamsSchema,
+  UpdateSendBodySchema,
 } from "./schemas.js";
-import { sendCard, getMySends, getSendById } from "../../services/sends.service.js";
+import {
+  sendCard,
+  getMySends,
+  getSendById,
+  updateScheduledSend,
+  cancelSend,
+} from "../../services/sends.service.js";
 import { getCardById } from "../../services/cards.service.js";
-import { notFound, forbidden } from "../../lib/errors.js";
+import { notFound, forbidden, badRequest } from "../../lib/errors.js";
 
 const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   // POST /cards/:id/send
@@ -74,6 +81,58 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         return notFound(reply, "Send not found");
       }
       return send;
+    },
+  );
+  // PATCH /sends/:id — update scheduled time
+  fastify.patch(
+    "/sends/:id",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        params: SendIdParamsSchema,
+        body: UpdateSendBodySchema,
+        response: {
+          200: CardSendSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await updateScheduledSend(
+        fastify.supabase,
+        request.params.id,
+        request.userId,
+        request.body.scheduled_at,
+      );
+
+      if (result.error === "not_found") return notFound(reply, "Send not found");
+      if (result.error === "forbidden") return forbidden(reply);
+      if (result.error === "already_sent") return badRequest(reply, "Send has already been sent");
+
+      return result.data;
+    },
+  );
+
+  // DELETE /sends/:id — cancel a scheduled send
+  fastify.delete(
+    "/sends/:id",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        params: SendIdParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const result = await cancelSend(
+        fastify.supabase,
+        request.params.id,
+        request.userId,
+      );
+
+      if (result.error === "not_found") return notFound(reply, "Send not found");
+      if (result.error === "forbidden") return forbidden(reply);
+      if (result.error === "already_sent") return badRequest(reply, "Send has already been sent");
+
+      return reply.code(204).send();
     },
   );
 };
