@@ -20,6 +20,19 @@ export async function buildApp(envOverrides?: Record<string, string>) {
     },
   }).withTypeProvider<TypeBoxTypeProvider>();
 
+  // Allow empty body on DELETE requests (Content-Type: application/json with no body)
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
+    if (typeof body === "string" && body.length === 0) {
+      done(null, undefined);
+    } else {
+      try {
+        done(null, JSON.parse(body as string));
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    }
+  });
+
   // Config
   await app.register(fastifyEnv, buildEnvOptions(envOverrides));
 
