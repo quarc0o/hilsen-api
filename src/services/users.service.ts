@@ -48,27 +48,4 @@ export async function deleteUser(supabase: SupabaseClient, userId: string) {
   if (error) throw error;
 }
 
-export async function findOrCreateUserByPhone(supabase: SupabaseClient, phone: string) {
-  const { data: existing, error: findError } = await supabase
-    .from("users")
-    .select("*")
-    .eq("phone_number", phone)
-    .single();
-
-  if (existing) return { user: existing, created: false };
-
-  if (findError && findError.code !== "PGRST116") {
-    throw findError;
-  }
-
-  // Create a lazy user (no supabase_id yet — handle_new_user trigger links on signup)
-  const { data: created, error: createError } = await supabase
-    .from("users")
-    .insert({ phone_number: phone })
-    .select()
-    .single();
-
-  if (createError) throw createError;
-  return { user: created, created: true };
-}
 

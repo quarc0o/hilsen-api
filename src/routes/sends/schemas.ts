@@ -12,9 +12,7 @@ export const CardSendSchema = Type.Object({
   id: Type.String({ format: "uuid" }),
   card_id: Type.String({ format: "uuid" }),
   sender_id: Type.String({ format: "uuid" }),
-  recipient_id: Type.Union([Type.String({ format: "uuid" }), Type.Null()]),
   recipient_phone: Type.Union([Type.String(), Type.Null()]),
-  recipient_email: Type.Union([Type.String(), Type.Null()]), // kept nullable for backward compat with existing data
   status: SendStatus,
   scheduled_at: Type.Union([Type.String(), Type.Null()]),
   sent_at: Type.Union([Type.String(), Type.Null()]),
@@ -44,7 +42,8 @@ export const SendIdParamsSchema = Type.Object({
 export type SendIdParams = Static<typeof SendIdParamsSchema>;
 
 export const UpdateSendBodySchema = Type.Object({
-  scheduled_at: Type.String(),
+  scheduled_at: Type.Optional(Type.String()),
+  recipient_phone: Type.Optional(Type.String()),
 });
 
 export type UpdateSendBody = Static<typeof UpdateSendBodySchema>;

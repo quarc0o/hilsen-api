@@ -101,7 +101,10 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         fastify.supabase,
         request.params.id,
         request.userId,
-        request.body.scheduled_at,
+        {
+          scheduledAt: request.body.scheduled_at,
+          recipientPhone: request.body.recipient_phone,
+        },
       );
 
       if (result.error === "not_found") return notFound(reply, "Send not found");

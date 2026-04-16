@@ -1,5 +1,4 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
-import { findOrCreateUserByPhone } from "./users.service.js";
 import { sendCardSms, type TwilioConfig } from "./notifications.service.js";
 
 export interface SendsWorkerConfig {
@@ -15,16 +14,11 @@ export async function sendCard(
 ) {
   const { recipientPhone, scheduledAt } = options;
 
-  // Resolve recipient (created eagerly so recipient_id is always populated)
-  const { user: recipient } = await findOrCreateUserByPhone(supabase, recipientPhone);
-
-  // Create the card_send record (always "scheduled" — the worker moves it to "sent")
   const { data: send, error: sendError } = await supabase
     .from("card_sends")
     .insert({
       card_id: cardId,
       sender_id: senderId,
-      recipient_id: recipient.id,
       recipient_phone: recipientPhone,
       status: "scheduled",
       scheduled_at: scheduledAt ?? new Date().toISOString(),
@@ -42,7 +36,7 @@ export async function getMySends(supabase: SupabaseClient, userId: string) {
   const { data, error } = await supabase
     .from("card_sends")
     .select("*")
-    .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
+    .eq("sender_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -64,16 +58,20 @@ export async function updateScheduledSend(
   supabase: SupabaseClient,
   sendId: string,
   senderId: string,
-  scheduledAt: string,
+  updates: { scheduledAt?: string; recipientPhone?: string },
 ) {
   const send = await getSendById(supabase, sendId);
   if (!send) return { error: "not_found" as const };
   if (send.sender_id !== senderId) return { error: "forbidden" as const };
   if (send.status !== "scheduled") return { error: "already_sent" as const };
 
+  const updateFields: Record<string, unknown> = {};
+  if (updates.scheduledAt) updateFields.scheduled_at = updates.scheduledAt;
+  if (updates.recipientPhone) updateFields.recipient_phone = updates.recipientPhone;
+
   const { data, error } = await supabase
     .from("card_sends")
-    .update({ scheduled_at: scheduledAt })
+    .update(updateFields)
     .eq("id", sendId)
     .select()
     .single();
@@ -82,11 +80,7 @@ export async function updateScheduledSend(
   return { data };
 }
 
-export async function cancelSend(
-  supabase: SupabaseClient,
-  sendId: string,
-  senderId: string,
-) {
+export async function cancelSend(supabase: SupabaseClient, sendId: string, senderId: string) {
   const send = await getSendById(supabase, sendId);
   if (!send) return { error: "not_found" as const };
   if (send.sender_id !== senderId) return { error: "forbidden" as const };
