@@ -11,7 +11,7 @@ import templateRoutes from "./routes/templates/index.js";
 import userRoutes from "./routes/users/index.js";
 import cardRoutes from "./routes/cards/index.js";
 import sendRoutes from "./routes/sends/index.js";
-import conversationRoutes from "./routes/conversations/index.js";
+
 
 export async function buildApp(envOverrides?: Record<string, string>) {
   const app = Fastify({
@@ -62,6 +62,6 @@ export async function buildApp(envOverrides?: Record<string, string>) {
   await app.register(userRoutes, { prefix: "/users" });
   await app.register(cardRoutes, { prefix: "/cards" });
   await app.register(sendRoutes);
-  await app.register(conversationRoutes, { prefix: "/conversations" });
+
   return app;
 }

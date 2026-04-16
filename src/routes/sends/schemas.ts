@@ -19,7 +19,6 @@ export const CardSendSchema = Type.Object({
   scheduled_at: Type.Union([Type.String(), Type.Null()]),
   sent_at: Type.Union([Type.String(), Type.Null()]),
   opened_at: Type.Union([Type.String(), Type.Null()]),
-  conversation_id: Type.Union([Type.String({ format: "uuid" }), Type.Null()]),
   created_at: Type.String(),
 });
 
