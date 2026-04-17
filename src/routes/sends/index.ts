@@ -49,6 +49,10 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         scheduledAt: request.body.scheduled_at,
       });
 
+      if (!request.body.scheduled_at) {
+        fastify.flushScheduledSends();
+      }
+
       return reply.code(201).send(sends);
     },
   );

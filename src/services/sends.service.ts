@@ -14,8 +14,7 @@ export async function sendCard(
 ) {
   const { recipientPhones, scheduledAt } = options;
 
-  const sendGroupId =
-    recipientPhones.length > 1 ? crypto.randomUUID() : null;
+  const sendGroupId = recipientPhones.length > 1 ? crypto.randomUUID() : null;
 
   const rows = recipientPhones.map((phone) => ({
     card_id: cardId,
@@ -27,10 +26,7 @@ export async function sendCard(
     sent_at: null,
   }));
 
-  const { data: sends, error } = await supabase
-    .from("card_sends")
-    .insert(rows)
-    .select();
+  const { data: sends, error } = await supabase.from("card_sends").insert(rows).select();
 
   if (error) throw error;
 
@@ -100,10 +96,7 @@ export async function updateScheduledSend(
       const updateFields: Record<string, unknown> = { send_group_id: sendGroupId };
       if (updates.scheduledAt) updateFields.scheduled_at = updates.scheduledAt;
 
-      const { error } = await supabase
-        .from("card_sends")
-        .update(updateFields)
-        .eq("id", sendId);
+      const { error } = await supabase.from("card_sends").update(updateFields).eq("id", sendId);
 
       if (error) throw error;
     }
@@ -118,7 +111,8 @@ export async function updateScheduledSend(
   // Simple single-field updates
   const updateFields: Record<string, unknown> = {};
   if (updates.scheduledAt) updateFields.scheduled_at = updates.scheduledAt;
-  if (updates.recipientPhone) updateFields.recipient_phone = updates.recipientPhone.replace(/^\+/, "");
+  if (updates.recipientPhone)
+    updateFields.recipient_phone = updates.recipientPhone.replace(/^\+/, "");
 
   const { data, error } = await supabase
     .from("card_sends")
@@ -183,7 +177,10 @@ export async function updateSendGroup(
       const { error } = await supabase
         .from("card_sends")
         .delete()
-        .in("id", phonesToRemove.map((s) => s.id));
+        .in(
+          "id",
+          phonesToRemove.map((s) => s.id),
+        );
 
       if (error) throw error;
     }

@@ -26,5 +26,12 @@ export function startScheduledSendsWorker(supabase: SupabaseClient, config: Send
     }
   }, POLL_INTERVAL_MS);
 
-  return () => clearInterval(timer);
+  return {
+    stop: () => clearInterval(timer),
+    flush: () => {
+      processScheduledSends(supabase, config).catch((err) => {
+        console.error("[scheduled-sends] Flush error:", err);
+      });
+    },
+  };
 }
