@@ -5,7 +5,9 @@ import {
   SendCardBodySchema,
   SendCardParamsSchema,
   SendIdParamsSchema,
+  SendGroupIdParamsSchema,
   UpdateSendBodySchema,
+  UpdateSendGroupBodySchema,
 } from "./schemas.js";
 import {
   sendCard,
@@ -13,6 +15,8 @@ import {
   getSendById,
   updateScheduledSend,
   cancelSend,
+  updateSendGroup,
+  cancelSendGroup,
 } from "../../services/sends.service.js";
 import { getCardById } from "../../services/cards.service.js";
 import { notFound, forbidden, badRequest } from "../../lib/errors.js";
@@ -27,7 +31,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         params: SendCardParamsSchema,
         body: SendCardBodySchema,
         response: {
-          201: CardSendSchema,
+          201: Type.Array(CardSendSchema),
         },
       },
     },
@@ -39,12 +43,12 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
-      const send = await sendCard(fastify.supabase, request.userId, request.params.id, {
-        recipientPhone: request.body.recipient_phone,
+      const sends = await sendCard(fastify.supabase, request.userId, request.params.id, {
+        recipientPhones: request.body.recipient_phones,
         scheduledAt: request.body.scheduled_at,
       });
 
-      return reply.code(201).send(send);
+      return reply.code(201).send(sends);
     },
   );
 
@@ -134,6 +138,55 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (result.error === "not_found") return notFound(reply, "Send not found");
       if (result.error === "forbidden") return forbidden(reply);
       if (result.error === "already_sent") return badRequest(reply, "Send has already been sent");
+
+      return reply.code(204).send();
+    },
+  );
+
+  // PATCH /send-groups/:groupId — reschedule all scheduled sends in a group
+  fastify.patch(
+    "/send-groups/:groupId",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        params: SendGroupIdParamsSchema,
+        body: UpdateSendGroupBodySchema,
+        response: {
+          200: Type.Array(CardSendSchema),
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await updateSendGroup(
+        fastify.supabase,
+        request.params.groupId,
+        request.userId,
+        request.body.scheduled_at,
+      );
+
+      if (result.error === "not_found") return notFound(reply, "Send group not found");
+
+      return result.data;
+    },
+  );
+
+  // DELETE /send-groups/:groupId — cancel all scheduled sends in a group
+  fastify.delete(
+    "/send-groups/:groupId",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        params: SendGroupIdParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const result = await cancelSendGroup(
+        fastify.supabase,
+        request.params.groupId,
+        request.userId,
+      );
+
+      if (result.error === "not_found") return notFound(reply, "Send group not found");
 
       return reply.code(204).send();
     },

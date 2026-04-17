@@ -10,26 +10,31 @@ export async function sendCard(
   supabase: SupabaseClient,
   senderId: string,
   cardId: string,
-  options: { recipientPhone: string; scheduledAt?: string },
+  options: { recipientPhones: string[]; scheduledAt?: string },
 ) {
-  const { recipientPhone, scheduledAt } = options;
+  const { recipientPhones, scheduledAt } = options;
 
-  const { data: send, error: sendError } = await supabase
+  const sendGroupId =
+    recipientPhones.length > 1 ? crypto.randomUUID() : null;
+
+  const rows = recipientPhones.map((phone) => ({
+    card_id: cardId,
+    sender_id: senderId,
+    recipient_phone: phone,
+    send_group_id: sendGroupId,
+    status: "scheduled",
+    scheduled_at: scheduledAt ?? new Date().toISOString(),
+    sent_at: null,
+  }));
+
+  const { data: sends, error } = await supabase
     .from("card_sends")
-    .insert({
-      card_id: cardId,
-      sender_id: senderId,
-      recipient_phone: recipientPhone,
-      status: "scheduled",
-      scheduled_at: scheduledAt ?? new Date().toISOString(),
-      sent_at: null,
-    })
-    .select()
-    .single();
+    .insert(rows)
+    .select();
 
-  if (sendError) throw sendError;
+  if (error) throw error;
 
-  return send;
+  return sends;
 }
 
 export async function getMySends(supabase: SupabaseClient, userId: string) {
@@ -87,6 +92,60 @@ export async function cancelSend(supabase: SupabaseClient, sendId: string, sende
   if (send.status !== "scheduled") return { error: "already_sent" as const };
 
   const { error } = await supabase.from("card_sends").delete().eq("id", sendId);
+
+  if (error) throw error;
+  return { success: true };
+}
+
+export async function updateSendGroup(
+  supabase: SupabaseClient,
+  sendGroupId: string,
+  senderId: string,
+  scheduledAt: string,
+) {
+  const { data: sends, error: fetchError } = await supabase
+    .from("card_sends")
+    .select("*")
+    .eq("send_group_id", sendGroupId)
+    .eq("sender_id", senderId)
+    .eq("status", "scheduled");
+
+  if (fetchError) throw fetchError;
+  if (!sends || sends.length === 0) return { error: "not_found" as const };
+
+  const { data, error } = await supabase
+    .from("card_sends")
+    .update({ scheduled_at: scheduledAt })
+    .eq("send_group_id", sendGroupId)
+    .eq("sender_id", senderId)
+    .eq("status", "scheduled")
+    .select();
+
+  if (error) throw error;
+  return { data };
+}
+
+export async function cancelSendGroup(
+  supabase: SupabaseClient,
+  sendGroupId: string,
+  senderId: string,
+) {
+  const { data: sends, error: fetchError } = await supabase
+    .from("card_sends")
+    .select("*")
+    .eq("send_group_id", sendGroupId)
+    .eq("sender_id", senderId)
+    .eq("status", "scheduled");
+
+  if (fetchError) throw fetchError;
+  if (!sends || sends.length === 0) return { error: "not_found" as const };
+
+  const { error } = await supabase
+    .from("card_sends")
+    .delete()
+    .eq("send_group_id", sendGroupId)
+    .eq("sender_id", senderId)
+    .eq("status", "scheduled");
 
   if (error) throw error;
   return { success: true };

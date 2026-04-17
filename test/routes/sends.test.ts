@@ -20,7 +20,7 @@ describe("Send routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/cards/00000000-0000-0000-0000-000000000000/send",
-        payload: { recipient_phone: "+1234567890" },
+        payload: { recipient_phones: ["+1234567890"] },
       });
 
       expect(response.statusCode).toBe(401);

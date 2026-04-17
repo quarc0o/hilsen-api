@@ -13,6 +13,7 @@ export const CardSendSchema = Type.Object({
   card_id: Type.String({ format: "uuid" }),
   sender_id: Type.String({ format: "uuid" }),
   recipient_phone: Type.Union([Type.String(), Type.Null()]),
+  send_group_id: Type.Union([Type.String({ format: "uuid" }), Type.Null()]),
   status: SendStatus,
   scheduled_at: Type.Union([Type.String(), Type.Null()]),
   sent_at: Type.Union([Type.String(), Type.Null()]),
@@ -23,7 +24,7 @@ export const CardSendSchema = Type.Object({
 export type CardSend = Static<typeof CardSendSchema>;
 
 export const SendCardBodySchema = Type.Object({
-  recipient_phone: Type.String(),
+  recipient_phones: Type.Array(Type.String(), { minItems: 1 }),
   scheduled_at: Type.Optional(Type.String()),
 });
 
@@ -41,9 +42,21 @@ export const SendIdParamsSchema = Type.Object({
 
 export type SendIdParams = Static<typeof SendIdParamsSchema>;
 
+export const SendGroupIdParamsSchema = Type.Object({
+  groupId: Type.String({ format: "uuid" }),
+});
+
+export type SendGroupIdParams = Static<typeof SendGroupIdParamsSchema>;
+
 export const UpdateSendBodySchema = Type.Object({
   scheduled_at: Type.Optional(Type.String()),
   recipient_phone: Type.Optional(Type.String()),
 });
 
 export type UpdateSendBody = Static<typeof UpdateSendBodySchema>;
+
+export const UpdateSendGroupBodySchema = Type.Object({
+  scheduled_at: Type.String(),
+});
+
+export type UpdateSendGroupBody = Static<typeof UpdateSendGroupBodySchema>;
