@@ -12,6 +12,7 @@ import {
 import {
   sendCard,
   getMySends,
+  getReceivedSends,
   getSendById,
   updateScheduledSend,
   cancelSend,
@@ -65,6 +66,22 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
     },
     async (request) => {
       return getMySends(fastify.supabase, request.userId);
+    },
+  );
+
+  // GET /sends/received
+  fastify.get(
+    "/sends/received",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        response: {
+          200: Type.Array(CardSendSchema),
+        },
+      },
+    },
+    async (request) => {
+      return getReceivedSends(fastify.supabase, request.userId);
     },
   );
 

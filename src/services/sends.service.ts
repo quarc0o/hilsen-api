@@ -20,7 +20,7 @@ export async function sendCard(
   const rows = recipientPhones.map((phone) => ({
     card_id: cardId,
     sender_id: senderId,
-    recipient_phone: phone,
+    recipient_phone: phone.replace(/^\+/, ""),
     send_group_id: sendGroupId,
     status: "scheduled",
     scheduled_at: scheduledAt ?? new Date().toISOString(),
@@ -35,6 +35,27 @@ export async function sendCard(
   if (error) throw error;
 
   return sends;
+}
+
+export async function getReceivedSends(supabase: SupabaseClient, userId: string) {
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select("phone_number")
+    .eq("id", userId)
+    .single();
+
+  if (userError) throw userError;
+  if (!user?.phone_number) return [];
+
+  const { data, error } = await supabase
+    .from("card_sends")
+    .select("*")
+    .eq("recipient_phone", user.phone_number)
+    .eq("status", "sent")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
 }
 
 export async function getMySends(supabase: SupabaseClient, userId: string) {
@@ -97,7 +118,7 @@ export async function updateScheduledSend(
   // Simple single-field updates
   const updateFields: Record<string, unknown> = {};
   if (updates.scheduledAt) updateFields.scheduled_at = updates.scheduledAt;
-  if (updates.recipientPhone) updateFields.recipient_phone = updates.recipientPhone;
+  if (updates.recipientPhone) updateFields.recipient_phone = updates.recipientPhone.replace(/^\+/, "");
 
   const { data, error } = await supabase
     .from("card_sends")
@@ -153,7 +174,8 @@ export async function updateSendGroup(
   // Diff recipient phones if provided
   if (updates.recipientPhones) {
     const existingPhones = new Set(existingSends.map((s) => s.recipient_phone));
-    const newPhones = new Set(updates.recipientPhones);
+    const normalizedPhones = updates.recipientPhones.map((p) => p.replace(/^\+/, ""));
+    const newPhones = new Set(normalizedPhones);
 
     // Delete sends for removed phones
     const phonesToRemove = existingSends.filter((s) => !newPhones.has(s.recipient_phone));
@@ -167,7 +189,7 @@ export async function updateSendGroup(
     }
 
     // Insert sends for added phones
-    const phonesToAdd = updates.recipientPhones.filter((p) => !existingPhones.has(p));
+    const phonesToAdd = normalizedPhones.filter((p) => !existingPhones.has(p));
     if (phonesToAdd.length > 0) {
       // Use card_id and scheduled_at from an existing send in the group
       const reference = existingSends[0];

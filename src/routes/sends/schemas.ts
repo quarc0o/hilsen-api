@@ -1,12 +1,11 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-export const SendStatus = Type.Union([
-  Type.Literal("pending"),
-  Type.Literal("scheduled"),
-  Type.Literal("sent"),
-  Type.Literal("delivered"),
-  Type.Literal("opened"),
-]);
+export enum SendStatusEnum {
+  Scheduled = "scheduled",
+  Sent = "sent",
+}
+
+export const SendStatus = Type.Enum(SendStatusEnum);
 
 export const CardSendSchema = Type.Object({
   id: Type.String({ format: "uuid" }),

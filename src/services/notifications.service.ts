@@ -29,8 +29,9 @@ export async function sendCardSms(
 ): Promise<SmsResult> {
   try {
     const twilioClient = getClient(config);
+    const e164Phone = `+${recipientPhone.replace(/^\+/, "")}`;
     const message = await twilioClient.messages.create({
-      to: recipientPhone,
+      to: e164Phone,
       from: config.senderId,
       body: `${senderFirstName} har sendt deg en hilsen. Se den her: ${cardViewUrl}`,
     });

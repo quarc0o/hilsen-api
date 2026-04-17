@@ -78,7 +78,8 @@ export default fp(
       if (error || !user) {
         // Get the phone number from Supabase auth to match lazy users
         const { data: authUser } = await fastify.supabase.auth.admin.getUserById(supabaseId);
-        const phone = authUser?.user?.phone ?? null;
+        const rawPhone = authUser?.user?.phone ?? null;
+        const phone = rawPhone ? rawPhone.replace(/^\+/, "") : null;
 
         // Check if a lazy user (created via invite) exists with this phone
         if (phone) {
