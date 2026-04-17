@@ -29,7 +29,7 @@ export async function getUserBySupabaseId(supabase: SupabaseClient, supabaseId: 
 export async function updateUser(
   supabase: SupabaseClient,
   userId: string,
-  updates: Partial<{ first_name: string; last_name: string; email: string | null }>,
+  updates: Partial<{ first_name: string; last_name: string | null; email: string | null }>,
 ) {
   const { data, error } = await supabase
     .from("users")
