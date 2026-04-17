@@ -87,7 +87,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       return send;
     },
   );
-  // PATCH /sends/:id — update scheduled time
+  // PATCH /sends/:id — update a scheduled send (or expand into a group with recipient_phones)
   fastify.patch(
     "/sends/:id",
     {
@@ -96,7 +96,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         params: SendIdParamsSchema,
         body: UpdateSendBodySchema,
         response: {
-          200: CardSendSchema,
+          200: Type.Union([CardSendSchema, Type.Array(CardSendSchema)]),
         },
       },
     },
@@ -108,6 +108,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         {
           scheduledAt: request.body.scheduled_at,
           recipientPhone: request.body.recipient_phone,
+          recipientPhones: request.body.recipient_phones,
         },
       );
 
@@ -161,7 +162,10 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         fastify.supabase,
         request.params.groupId,
         request.userId,
-        request.body.scheduled_at,
+        {
+          scheduledAt: request.body.scheduled_at,
+          recipientPhones: request.body.recipient_phones,
+        },
       );
 
       if (result.error === "not_found") return notFound(reply, "Send group not found");

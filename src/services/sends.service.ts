@@ -63,13 +63,38 @@ export async function updateScheduledSend(
   supabase: SupabaseClient,
   sendId: string,
   senderId: string,
-  updates: { scheduledAt?: string; recipientPhone?: string },
+  updates: { scheduledAt?: string; recipientPhone?: string; recipientPhones?: string[] },
 ) {
   const send = await getSendById(supabase, sendId);
   if (!send) return { error: "not_found" as const };
   if (send.sender_id !== senderId) return { error: "forbidden" as const };
   if (send.status !== "scheduled") return { error: "already_sent" as const };
 
+  // If recipient_phones provided, expand into a group
+  if (updates.recipientPhones) {
+    const sendGroupId = send.send_group_id ?? crypto.randomUUID();
+
+    // Assign group ID to the existing send if it doesn't have one
+    if (!send.send_group_id) {
+      const updateFields: Record<string, unknown> = { send_group_id: sendGroupId };
+      if (updates.scheduledAt) updateFields.scheduled_at = updates.scheduledAt;
+
+      const { error } = await supabase
+        .from("card_sends")
+        .update(updateFields)
+        .eq("id", sendId);
+
+      if (error) throw error;
+    }
+
+    // Delegate to updateSendGroup for the diff logic
+    return updateSendGroup(supabase, sendGroupId, senderId, {
+      scheduledAt: updates.scheduledAt,
+      recipientPhones: updates.recipientPhones,
+    });
+  }
+
+  // Simple single-field updates
   const updateFields: Record<string, unknown> = {};
   if (updates.scheduledAt) updateFields.scheduled_at = updates.scheduledAt;
   if (updates.recipientPhone) updateFields.recipient_phone = updates.recipientPhone;
@@ -101,9 +126,9 @@ export async function updateSendGroup(
   supabase: SupabaseClient,
   sendGroupId: string,
   senderId: string,
-  scheduledAt: string,
+  updates: { scheduledAt?: string; recipientPhones?: string[] },
 ) {
-  const { data: sends, error: fetchError } = await supabase
+  const { data: existingSends, error: fetchError } = await supabase
     .from("card_sends")
     .select("*")
     .eq("send_group_id", sendGroupId)
@@ -111,15 +136,66 @@ export async function updateSendGroup(
     .eq("status", "scheduled");
 
   if (fetchError) throw fetchError;
-  if (!sends || sends.length === 0) return { error: "not_found" as const };
+  if (!existingSends || existingSends.length === 0) return { error: "not_found" as const };
 
+  // Update scheduled_at on all existing scheduled sends if provided
+  if (updates.scheduledAt) {
+    const { error } = await supabase
+      .from("card_sends")
+      .update({ scheduled_at: updates.scheduledAt })
+      .eq("send_group_id", sendGroupId)
+      .eq("sender_id", senderId)
+      .eq("status", "scheduled");
+
+    if (error) throw error;
+  }
+
+  // Diff recipient phones if provided
+  if (updates.recipientPhones) {
+    const existingPhones = new Set(existingSends.map((s) => s.recipient_phone));
+    const newPhones = new Set(updates.recipientPhones);
+
+    // Delete sends for removed phones
+    const phonesToRemove = existingSends.filter((s) => !newPhones.has(s.recipient_phone));
+    if (phonesToRemove.length > 0) {
+      const { error } = await supabase
+        .from("card_sends")
+        .delete()
+        .in("id", phonesToRemove.map((s) => s.id));
+
+      if (error) throw error;
+    }
+
+    // Insert sends for added phones
+    const phonesToAdd = updates.recipientPhones.filter((p) => !existingPhones.has(p));
+    if (phonesToAdd.length > 0) {
+      // Use card_id and scheduled_at from an existing send in the group
+      const reference = existingSends[0];
+      const scheduledAt = updates.scheduledAt ?? reference.scheduled_at;
+
+      const rows = phonesToAdd.map((phone) => ({
+        card_id: reference.card_id,
+        sender_id: senderId,
+        recipient_phone: phone,
+        send_group_id: sendGroupId,
+        status: "scheduled",
+        scheduled_at: scheduledAt,
+        sent_at: null,
+      }));
+
+      const { error } = await supabase.from("card_sends").insert(rows).select();
+
+      if (error) throw error;
+    }
+  }
+
+  // Re-fetch and return the current state of the group
   const { data, error } = await supabase
     .from("card_sends")
-    .update({ scheduled_at: scheduledAt })
+    .select("*")
     .eq("send_group_id", sendGroupId)
     .eq("sender_id", senderId)
-    .eq("status", "scheduled")
-    .select();
+    .eq("status", "scheduled");
 
   if (error) throw error;
   return { data };

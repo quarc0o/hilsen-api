@@ -51,12 +51,14 @@ export type SendGroupIdParams = Static<typeof SendGroupIdParamsSchema>;
 export const UpdateSendBodySchema = Type.Object({
   scheduled_at: Type.Optional(Type.String()),
   recipient_phone: Type.Optional(Type.String()),
+  recipient_phones: Type.Optional(Type.Array(Type.String(), { minItems: 1 })),
 });
 
 export type UpdateSendBody = Static<typeof UpdateSendBodySchema>;
 
 export const UpdateSendGroupBodySchema = Type.Object({
-  scheduled_at: Type.String(),
+  scheduled_at: Type.Optional(Type.String()),
+  recipient_phones: Type.Optional(Type.Array(Type.String(), { minItems: 1 })),
 });
 
 export type UpdateSendGroupBody = Static<typeof UpdateSendGroupBodySchema>;
