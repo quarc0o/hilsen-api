@@ -13,7 +13,6 @@ import cardRoutes from "./routes/cards/index.js";
 import sendRoutes from "./routes/sends/index.js";
 import stickerRoutes from "./routes/stickers/index.js";
 
-
 export async function buildApp(envOverrides?: Record<string, string>) {
   const app = Fastify({
     logger: {

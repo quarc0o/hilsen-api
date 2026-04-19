@@ -1,8 +1,8 @@
-const COLLECTION = "Stickers";
+const COLLECTION = "stickers";
 
 interface DirectusSticker {
   id: string;
-  image: string;
+  sticker_image: string;
 }
 
 export interface Sticker {
@@ -13,7 +13,7 @@ export interface Sticker {
 function mapSticker(directusUrl: string, item: DirectusSticker): Sticker {
   return {
     id: item.id,
-    image_url: `${directusUrl}/assets/${item.image}`,
+    image_url: `${directusUrl}/assets/${item.sticker_image}`,
   };
 }
 
