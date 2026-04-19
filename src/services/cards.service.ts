@@ -69,7 +69,19 @@ export async function updateCard(
   return data;
 }
 
-export async function deleteCard(supabase: SupabaseClient, cardId: string) {
+export async function deleteCard(supabase: SupabaseClient, cardId: string, creatorId: string) {
+  // Clean up storage: overlay images and backside PNG
+  const overlayPath = `${creatorId}/overlays/${cardId}`;
+  const { data: overlayFiles } = await supabase.storage.from("card-images").list(overlayPath);
+  if (overlayFiles && overlayFiles.length > 0) {
+    await supabase.storage
+      .from("card-images")
+      .remove(overlayFiles.map((f) => `${overlayPath}/${f.name}`));
+  }
+
+  await supabase.storage.from("card-images").remove([`${creatorId}/backsides/${cardId}.png`]);
+
+  // Delete the DB row
   const { error } = await supabase.from("greeting_cards").delete().eq("id", cardId);
 
   if (error) throw error;

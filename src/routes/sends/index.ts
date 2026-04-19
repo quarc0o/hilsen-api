@@ -105,6 +105,20 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (!send) {
         return notFound(reply, "Send not found");
       }
+
+      // Resolve card_backside_url to a signed URL if it's a storage path
+      const card = await getCardById(fastify.supabase, send.card_id);
+      if (card?.card_backside_url && !card.card_backside_url.startsWith("http")) {
+        const { data } = await fastify.supabase.storage
+          .from("card-images")
+          .createSignedUrl(card.card_backside_url, 3600);
+        if (data?.signedUrl) {
+          send.card_backside_url = data.signedUrl;
+        }
+      } else if (card?.card_backside_url) {
+        send.card_backside_url = card.card_backside_url;
+      }
+
       return send;
     },
   );

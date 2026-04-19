@@ -108,7 +108,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
-      await deleteCard(fastify.supabase, request.params.id);
+      await deleteCard(fastify.supabase, request.params.id, card.creator_id);
       return reply.code(204).send();
     },
   );
