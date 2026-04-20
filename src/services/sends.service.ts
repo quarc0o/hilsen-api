@@ -45,24 +45,30 @@ export async function getReceivedSends(supabase: SupabaseClient, userId: string)
 
   const { data, error } = await supabase
     .from("card_sends")
-    .select("*")
+    .select("*, greeting_cards(design_id)")
     .eq("recipient_phone", user.phone_number)
     .eq("status", "sent")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data;
+  return (data ?? []).map(({ greeting_cards, ...send }) => ({
+    ...send,
+    card_design_id: (greeting_cards as { design_id: string | null } | null)?.design_id ?? null,
+  }));
 }
 
 export async function getMySends(supabase: SupabaseClient, userId: string) {
   const { data, error } = await supabase
     .from("card_sends")
-    .select("*")
+    .select("*, greeting_cards(design_id)")
     .eq("sender_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data;
+  return (data ?? []).map(({ greeting_cards, ...send }) => ({
+    ...send,
+    card_design_id: (greeting_cards as { design_id: string | null } | null)?.design_id ?? null,
+  }));
 }
 
 export async function getSendById(supabase: SupabaseClient, sendId: string) {

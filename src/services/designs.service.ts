@@ -79,6 +79,27 @@ export async function getDesignCategories(directusUrl: string) {
   return Object.entries(counts).map(([category, count]) => ({ category, count }));
 }
 
+export async function getDesignsByIds(directusUrl: string, ids: string[]) {
+  if (ids.length === 0) return new Map<string, Design>();
+
+  const params = new URLSearchParams({
+    "filter[id][_in]": ids.join(","),
+    limit: "-1",
+  });
+
+  const res = await fetch(`${directusUrl}/items/${COLLECTION}?${params}`);
+  if (!res.ok) {
+    throw new Error(`Directus error: ${res.status} ${res.statusText}`);
+  }
+
+  const { data } = (await res.json()) as { data: DirectusDesign[] };
+  const map = new Map<string, Design>();
+  for (const item of data ?? []) {
+    map.set(item.id, mapDesign(directusUrl, item));
+  }
+  return map;
+}
+
 export async function getDesignById(directusUrl: string, id: string) {
   const res = await fetch(`${directusUrl}/items/${COLLECTION}/${id}`);
 

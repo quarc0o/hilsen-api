@@ -20,7 +20,7 @@ import {
   cancelSendGroup,
 } from "../../services/sends.service.js";
 import { getCardById } from "../../services/cards.service.js";
-import { getDesignById } from "../../services/designs.service.js";
+import { getDesignById, getDesignsByIds } from "../../services/designs.service.js";
 import { notFound, forbidden, badRequest } from "../../lib/errors.js";
 
 const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
@@ -58,6 +58,19 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
     },
   );
 
+  async function attachDesignImageUrls<T extends { card_design_id: string | null }>(sends: T[]) {
+    const ids = Array.from(
+      new Set(sends.map((s) => s.card_design_id).filter((id): id is string => !!id)),
+    );
+    const designs = await getDesignsByIds(fastify.config.DIRECTUS_URL, ids);
+    return sends.map((s) => ({
+      ...s,
+      card_design_image_url: s.card_design_id
+        ? (designs.get(s.card_design_id)?.image_url ?? null)
+        : null,
+    }));
+  }
+
   // GET /sends/mine
   fastify.get(
     "/sends/mine",
@@ -70,7 +83,8 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async (request) => {
-      return getMySends(fastify.supabase, request.userId);
+      const sends = await getMySends(fastify.supabase, request.userId);
+      return attachDesignImageUrls(sends);
     },
   );
 
@@ -86,7 +100,8 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async (request) => {
-      return getReceivedSends(fastify.supabase, request.userId);
+      const sends = await getReceivedSends(fastify.supabase, request.userId);
+      return attachDesignImageUrls(sends);
     },
   );
 
