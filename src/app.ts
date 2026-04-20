@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import fastifyEnv from "@fastify/env";
 import fastifyCors from "@fastify/cors";
+import fastifyMultipart from "@fastify/multipart";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import { buildEnvOptions } from "./config/env.js";
@@ -66,6 +67,11 @@ export async function buildApp(envOverrides?: Record<string, string>) {
 
   // CORS
   await app.register(fastifyCors);
+
+  // Multipart (for template uploads)
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file
+  });
 
   // Plugins
   await app.register(supabasePlugin);

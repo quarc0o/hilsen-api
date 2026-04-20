@@ -21,6 +21,35 @@ function mapTemplate(directusUrl: string, item: DirectusTemplate): Template {
   };
 }
 
+export async function createTemplate(
+  directusUrl: string,
+  token: string,
+  name: string,
+  data: unknown,
+  previewFileId: string,
+): Promise<Template> {
+  const res = await fetch(`${directusUrl}/items/${COLLECTION}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      status: "published",
+      title: name,
+      Template_Data: data,
+      Template_Preview: previewFileId,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Directus error: ${res.status} ${res.statusText}`);
+  }
+
+  const { data: item } = (await res.json()) as { data: DirectusTemplate };
+  return mapTemplate(directusUrl, item);
+}
+
 export async function getTemplates(directusUrl: string) {
   const params = new URLSearchParams({
     "filter[status][_eq]": "published",

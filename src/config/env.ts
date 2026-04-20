@@ -13,6 +13,7 @@ export interface EnvConfig {
   TWILIO_SENDER_ID: string;
   APP_BASE_URL: string;
   DIRECTUS_URL: string;
+  DIRECTUS_TOKEN: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
   GIT_SHA?: string;
@@ -35,6 +36,7 @@ export const envSchema = {
     "TWILIO_SENDER_ID",
     "APP_BASE_URL",
     "DIRECTUS_URL",
+    "DIRECTUS_TOKEN",
   ],
   properties: {
     PORT: {
@@ -71,6 +73,9 @@ export const envSchema = {
       type: "string" as const,
     },
     DIRECTUS_URL: {
+      type: "string" as const,
+    },
+    DIRECTUS_TOKEN: {
       type: "string" as const,
     },
     SENTRY_DSN: {
