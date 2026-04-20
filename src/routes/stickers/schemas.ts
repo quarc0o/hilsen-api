@@ -2,6 +2,8 @@ import { Type, type Static } from "@sinclair/typebox";
 
 export const StickerSchema = Type.Object({
   id: Type.String({ format: "uuid" }),
+  name: Type.String(),
+  categories: Type.Array(Type.String()),
   image_url: Type.String(),
 });
 

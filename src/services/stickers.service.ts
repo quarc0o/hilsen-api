@@ -2,17 +2,23 @@ const COLLECTION = "stickers";
 
 interface DirectusSticker {
   id: string;
+  Name: string;
+  categories: string[];
   sticker_image: string;
 }
 
 export interface Sticker {
   id: string;
+  name: string;
+  categories: string[];
   image_url: string;
 }
 
 function mapSticker(directusUrl: string, item: DirectusSticker): Sticker {
   return {
     id: item.id,
+    name: item.Name,
+    categories: item.categories ?? [],
     image_url: `${directusUrl}/assets/${item.sticker_image}`,
   };
 }
