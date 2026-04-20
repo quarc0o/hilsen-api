@@ -13,6 +13,9 @@ export interface EnvConfig {
   TWILIO_SENDER_ID: string;
   APP_BASE_URL: string;
   DIRECTUS_URL: string;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  GIT_SHA?: string;
 }
 
 declare module "fastify" {
@@ -68,6 +71,15 @@ export const envSchema = {
       type: "string" as const,
     },
     DIRECTUS_URL: {
+      type: "string" as const,
+    },
+    SENTRY_DSN: {
+      type: "string" as const,
+    },
+    SENTRY_ENVIRONMENT: {
+      type: "string" as const,
+    },
+    GIT_SHA: {
       type: "string" as const,
     },
   },

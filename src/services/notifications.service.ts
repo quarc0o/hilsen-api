@@ -1,4 +1,5 @@
 import twilio from "twilio";
+import { captureWithTags } from "../lib/sentry.js";
 
 export interface TwilioConfig {
   accountSid: string;
@@ -10,6 +11,10 @@ export interface SmsResult {
   success: boolean;
   messageSid?: string;
   error?: string;
+}
+
+export interface SendCardSmsContext {
+  cardSendId?: string;
 }
 
 let client: twilio.Twilio | null = null;
@@ -26,6 +31,7 @@ export async function sendCardSms(
   recipientPhone: string,
   senderFirstName: string,
   cardViewUrl: string,
+  context: SendCardSmsContext = {},
 ): Promise<SmsResult> {
   try {
     const twilioClient = getClient(config);
@@ -38,6 +44,12 @@ export async function sendCardSms(
 
     return { success: true, messageSid: message.sid };
   } catch (err) {
+    const twilioErr = err as { code?: number | string; status?: number | string };
+    captureWithTags(err, {
+      "twilio.error_code": twilioErr.code,
+      "twilio.status": twilioErr.status,
+      card_send_id: context.cardSendId,
+    });
     const errorMessage = err instanceof Error ? err.message : String(err);
     return { success: false, error: errorMessage };
   }

@@ -67,9 +67,7 @@ export async function deleteUser(supabase: SupabaseClient, userId: string) {
               );
               if (deepFiles) {
                 allPaths.push(
-                  ...deepFiles.map(
-                    (f) => `${userFolder}/${item.name}/${sub.name}/${f.name}`,
-                  ),
+                  ...deepFiles.map((f) => `${userFolder}/${item.name}/${sub.name}/${f.name}`),
                 );
               }
             } else {
@@ -91,5 +89,3 @@ export async function deleteUser(supabase: SupabaseClient, userId: string) {
 
   if (error) throw error;
 }
-
-

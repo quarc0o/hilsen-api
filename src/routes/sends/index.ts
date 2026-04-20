@@ -165,11 +165,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async (request, reply) => {
-      const result = await cancelSend(
-        fastify.supabase,
-        request.params.id,
-        request.userId,
-      );
+      const result = await cancelSend(fastify.supabase, request.params.id, request.userId);
 
       if (result.error === "not_found") return notFound(reply, "Send not found");
       if (result.error === "forbidden") return forbidden(reply);

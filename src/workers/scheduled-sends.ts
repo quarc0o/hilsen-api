@@ -1,7 +1,13 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { processScheduledSends, type SendsWorkerConfig } from "../services/sends.service.js";
+import { captureWithTags } from "../lib/sentry.js";
 
 const POLL_INTERVAL_MS = 60_000; // 1 minute
+
+function reportFailure(err: unknown, phase: string) {
+  console.error(`[scheduled-sends] ${phase} error:`, err);
+  captureWithTags(err, { worker: "scheduled-sends", phase });
+}
 
 export function startScheduledSendsWorker(supabase: SupabaseClient, config: SendsWorkerConfig) {
   // Run immediately on startup to catch sends that came due while server was down
@@ -11,9 +17,7 @@ export function startScheduledSendsWorker(supabase: SupabaseClient, config: Send
         console.log(`[scheduled-sends] Startup: processed ${processed.length} scheduled sends`);
       }
     })
-    .catch((err) => {
-      console.error("[scheduled-sends] Startup error:", err);
-    });
+    .catch((err) => reportFailure(err, "startup"));
 
   const timer = setInterval(async () => {
     try {
@@ -22,16 +26,14 @@ export function startScheduledSendsWorker(supabase: SupabaseClient, config: Send
         console.log(`[scheduled-sends] Processed ${processed.length} scheduled sends`);
       }
     } catch (err) {
-      console.error("[scheduled-sends] Error processing scheduled sends:", err);
+      reportFailure(err, "tick");
     }
   }, POLL_INTERVAL_MS);
 
   return {
     stop: () => clearInterval(timer),
     flush: () => {
-      processScheduledSends(supabase, config).catch((err) => {
-        console.error("[scheduled-sends] Flush error:", err);
-      });
+      processScheduledSends(supabase, config).catch((err) => reportFailure(err, "flush"));
     },
   };
 }

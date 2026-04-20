@@ -35,7 +35,8 @@ export default fp(
   async function authPlugin(fastify: FastifyInstance) {
     // Fetch JWKS from Supabase to detect signing algorithm
     // Newer Supabase versions sign JWTs with ES256 instead of HS256
-    let jwtSecret: string | { public: string; private: string } = fastify.config.SUPABASE_JWT_SECRET;
+    let jwtSecret: string | { public: string; private: string } =
+      fastify.config.SUPABASE_JWT_SECRET;
     try {
       const jwksUrl = `${fastify.config.SUPABASE_URL}/auth/v1/.well-known/jwks.json`;
       const response = await fetch(jwksUrl);
@@ -116,6 +117,9 @@ export default fp(
 
         if (createError || !newUser) {
           fastify.log.error({ createError }, "Failed to auto-create user record");
+          request.captureException(createError ?? new Error("Failed to auto-create user record"), {
+            "auth.stage": "create_user",
+          });
           reply.code(401).send({ error: "User not found" });
           return;
         }
@@ -130,5 +134,5 @@ export default fp(
     fastify.decorateRequest("userId", "");
     fastify.decorateRequest("supabaseId", "");
   },
-  { name: "auth", dependencies: ["supabase"] },
+  { name: "auth", dependencies: ["supabase", "sentry"] },
 );

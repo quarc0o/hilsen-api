@@ -273,6 +273,7 @@ export async function processScheduledSends(supabase: SupabaseClient, config: Se
       send.recipient_phone,
       senderFirstName,
       cardViewUrl,
+      { cardSendId: send.id },
     );
 
     // 2. If SMS fails, log error and continue

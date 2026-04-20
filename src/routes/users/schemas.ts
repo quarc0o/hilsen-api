@@ -14,7 +14,9 @@ export type User = Static<typeof UserSchema>;
 
 export const UpdateUserBodySchema = Type.Object({
   first_name: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
-  last_name: Type.Optional(Type.Union([Type.String({ minLength: 1, maxLength: 100 }), Type.Null()])),
+  last_name: Type.Optional(
+    Type.Union([Type.String({ minLength: 1, maxLength: 100 }), Type.Null()]),
+  ),
   email: Type.Optional(Type.Union([Type.String({ format: "email" }), Type.Null()])),
 });
 

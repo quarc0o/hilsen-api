@@ -1,4 +1,6 @@
+import * as Sentry from "@sentry/node";
 import { buildApp } from "./app.js";
+import { isSentryEnabled } from "./lib/sentry.js";
 import { startScheduledSendsWorker } from "./workers/scheduled-sends.js";
 
 declare module "fastify" {
@@ -39,6 +41,17 @@ const start = async () => {
 
     process.on("SIGINT", () => shutdown("SIGINT"));
     process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+    if (isSentryEnabled()) {
+      process.on("uncaughtException", (err) => {
+        Sentry.captureException(err);
+        app.log.fatal({ err }, "uncaughtException");
+      });
+      process.on("unhandledRejection", (reason) => {
+        Sentry.captureException(reason);
+        app.log.error({ reason }, "unhandledRejection");
+      });
+    }
   } catch (err) {
     console.error(err);
     process.exit(1);
