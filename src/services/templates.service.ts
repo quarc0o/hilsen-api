@@ -27,6 +27,7 @@ export async function createTemplate(
   name: string,
   data: unknown,
   previewFileId: string,
+  placeholderFileId: string | null,
 ): Promise<Template> {
   const res = await fetch(`${directusUrl}/items/${COLLECTION}`, {
     method: "POST",
@@ -39,6 +40,7 @@ export async function createTemplate(
       title: name,
       Template_Data: data,
       Template_Preview: previewFileId,
+      Placeholder_Image: placeholderFileId,
     }),
   });
 

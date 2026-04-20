@@ -3,7 +3,6 @@ import { Type } from "@sinclair/typebox";
 import { TemplateSchema, TemplateIdParamsSchema } from "./schemas.js";
 import { getTemplates, getTemplateById, createTemplate } from "../../services/templates.service.js";
 import {
-  uploadPlaceholderImage,
   uploadFileToDirectus,
   type FileUpload,
 } from "../../services/placeholder-images.service.js";
@@ -63,25 +62,29 @@ const templateRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (!parsed.name) return badRequest(reply, "data.name is required");
 
       // Upload preview + all placeholder images in parallel
+      // placeholder files are keyed by overlay UUID (stripped from "placeholder_<uuid>")
       const placeholderUuids = Object.keys(placeholderFiles);
-      const [previewFileId, ...placeholderUploads] = await Promise.all([
+      const [previewFileId, ...placeholderFileIds] = await Promise.all([
         uploadFileToDirectus(directusUrl, token, previewFile),
         ...placeholderUuids.map((uuid) =>
-          uploadPlaceholderImage(directusUrl, token, placeholderFiles[uuid]),
+          uploadFileToDirectus(directusUrl, token, placeholderFiles[uuid]),
         ),
       ]);
-      const placeholderMap = Object.fromEntries(
-        placeholderUuids.map((uuid, i) => [uuid, placeholderUploads[i]]),
+
+      // map overlay uuid → full Directus asset URL
+      const placeholderUrlMap = Object.fromEntries(
+        placeholderUuids.map((uuid, i) => [uuid, `${directusUrl}/assets/${placeholderFileIds[i]}`]),
       );
 
-      // Substitute placeholder_id → placeholder_image_id in each overlay item
+      // Inject placeholderImageUrl into matching overlay items (matched by item.uuid)
       const resolvedItems = parsed.data.map((item) => {
-        const pid = item.placeholder_id as string | undefined;
-        if (!pid || !placeholderMap[pid]) return item;
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { placeholder_id, ...rest } = item;
-        return { ...rest, placeholder_image_id: placeholderMap[pid].id };
+        const uuid = item.uuid as string | undefined;
+        if (!uuid || !placeholderUrlMap[uuid]) return item;
+        return { ...item, placeholderImageUrl: placeholderUrlMap[uuid] };
       });
+
+      // Use the first placeholder file ID for the Card_Templates.Placeholder_Image field
+      const placeholderFileId = placeholderFileIds[0] ?? null;
 
       const template = await createTemplate(
         directusUrl,
@@ -89,6 +92,7 @@ const templateRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         parsed.name,
         resolvedItems,
         previewFileId,
+        placeholderFileId,
       );
       return reply.code(201).send(template);
     },
