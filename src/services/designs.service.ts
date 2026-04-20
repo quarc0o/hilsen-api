@@ -1,20 +1,20 @@
 const COLLECTION = "Greeting_Cards";
 
-interface DirectusTemplate {
+interface DirectusDesign {
   id: string;
   card_title: string;
   categories: string[];
   image_url: string;
 }
 
-export interface Template {
+export interface Design {
   id: string;
   card_title: string;
   categories: string[];
   image_url: string;
 }
 
-function mapTemplate(directusUrl: string, item: DirectusTemplate): Template {
+function mapDesign(directusUrl: string, item: DirectusDesign): Design {
   return {
     id: item.id,
     card_title: item.card_title,
@@ -23,7 +23,7 @@ function mapTemplate(directusUrl: string, item: DirectusTemplate): Template {
   };
 }
 
-export async function getTemplates(
+export async function getDesigns(
   directusUrl: string,
   options: {
     category?: string;
@@ -52,11 +52,11 @@ export async function getTemplates(
     throw new Error(`Directus error: ${res.status} ${res.statusText}`);
   }
 
-  const { data } = (await res.json()) as { data: DirectusTemplate[] };
-  return (data ?? []).map((item) => mapTemplate(directusUrl, item));
+  const { data } = (await res.json()) as { data: DirectusDesign[] };
+  return (data ?? []).map((item) => mapDesign(directusUrl, item));
 }
 
-export async function getTemplateCategories(directusUrl: string) {
+export async function getDesignCategories(directusUrl: string) {
   const params = new URLSearchParams({
     "fields[]": "categories",
     limit: "-1",
@@ -67,7 +67,7 @@ export async function getTemplateCategories(directusUrl: string) {
     throw new Error(`Directus error: ${res.status} ${res.statusText}`);
   }
 
-  const { data } = (await res.json()) as { data: Pick<DirectusTemplate, "categories">[] };
+  const { data } = (await res.json()) as { data: Pick<DirectusDesign, "categories">[] };
 
   const counts: Record<string, number> = {};
   for (const item of data ?? []) {
@@ -79,7 +79,7 @@ export async function getTemplateCategories(directusUrl: string) {
   return Object.entries(counts).map(([category, count]) => ({ category, count }));
 }
 
-export async function getTemplateById(directusUrl: string, id: string) {
+export async function getDesignById(directusUrl: string, id: string) {
   const res = await fetch(`${directusUrl}/items/${COLLECTION}/${id}`);
 
   if (res.status === 403 || res.status === 404) {
@@ -90,6 +90,6 @@ export async function getTemplateById(directusUrl: string, id: string) {
     throw new Error(`Directus error: ${res.status} ${res.statusText}`);
   }
 
-  const { data } = (await res.json()) as { data: DirectusTemplate };
-  return mapTemplate(directusUrl, data);
+  const { data } = (await res.json()) as { data: DirectusDesign };
+  return mapDesign(directusUrl, data);
 }

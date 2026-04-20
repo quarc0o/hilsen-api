@@ -68,7 +68,7 @@ export async function getMySends(supabase: SupabaseClient, userId: string) {
 export async function getSendById(supabase: SupabaseClient, sendId: string) {
   const { data, error } = await supabase
     .from("card_sends")
-    .select("*, greeting_cards(template_id)")
+    .select("*, greeting_cards(design_id)")
     .eq("id", sendId)
     .single();
 
@@ -81,8 +81,7 @@ export async function getSendById(supabase: SupabaseClient, sendId: string) {
   const { greeting_cards, ...send } = data;
   return {
     ...send,
-    card_template_id:
-      (greeting_cards as { template_id: string | null } | null)?.template_id ?? null,
+    card_design_id: (greeting_cards as { design_id: string | null } | null)?.design_id ?? null,
   };
 }
 

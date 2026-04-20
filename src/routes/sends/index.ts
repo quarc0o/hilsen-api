@@ -20,7 +20,7 @@ import {
   cancelSendGroup,
 } from "../../services/sends.service.js";
 import { getCardById } from "../../services/cards.service.js";
-import { getTemplateById } from "../../services/templates.service.js";
+import { getDesignById } from "../../services/designs.service.js";
 import { notFound, forbidden, badRequest } from "../../lib/errors.js";
 
 const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
@@ -108,10 +108,10 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       }
 
       const backsidePath = `${send.sender_id}/${send.card_id}.png`;
-      const [{ data: urlData, error: storageError }, template] = await Promise.all([
+      const [{ data: urlData, error: storageError }, design] = await Promise.all([
         fastify.supabase.storage.from("card-images").createSignedUrl(backsidePath, 3600),
-        send.card_template_id
-          ? getTemplateById(fastify.config.DIRECTUS_URL, send.card_template_id)
+        send.card_design_id
+          ? getDesignById(fastify.config.DIRECTUS_URL, send.card_design_id)
           : Promise.resolve(null),
       ]);
 
@@ -122,7 +122,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       return {
         ...send,
         card_backside_url: urlData?.signedUrl ?? null,
-        card_template_image_url: template?.image_url ?? null,
+        card_design_image_url: design?.image_url ?? null,
       };
     },
   );

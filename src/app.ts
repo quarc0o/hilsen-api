@@ -8,7 +8,7 @@ import { buildEnvOptions } from "./config/env.js";
 import sentryPlugin from "./plugins/sentry.js";
 import supabasePlugin from "./plugins/supabase.js";
 import authPlugin from "./plugins/auth.js";
-import templateRoutes from "./routes/templates/index.js";
+import designRoutes from "./routes/designs/index.js";
 import userRoutes from "./routes/users/index.js";
 import cardRoutes from "./routes/cards/index.js";
 import sendRoutes from "./routes/sends/index.js";
@@ -75,7 +75,7 @@ export async function buildApp(envOverrides?: Record<string, string>) {
   });
 
   // Routes
-  await app.register(templateRoutes, { prefix: "/templates" });
+  await app.register(designRoutes, { prefix: "/designs" });
   await app.register(userRoutes, { prefix: "/users" });
   await app.register(cardRoutes, { prefix: "/cards" });
   await app.register(sendRoutes);

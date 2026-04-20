@@ -3,14 +3,13 @@ import { type SupabaseClient } from "@supabase/supabase-js";
 export async function createCard(
   supabase: SupabaseClient,
   userId: string,
-  card: { template_id: string },
+  card: { design_id: string },
 ) {
   const { data, error } = await supabase
     .from("greeting_cards")
     .insert({
       creator_id: userId,
-      template_id: card.template_id,
-      status: "draft",
+      design_id: card.design_id,
     })
     .select()
     .single();
@@ -48,7 +47,7 @@ export async function getMyCards(supabase: SupabaseClient, userId: string) {
 export async function updateCard(
   supabase: SupabaseClient,
   cardId: string,
-  updates: Partial<{ message: string; overlay_items: unknown }>,
+  updates: Partial<{ message: string }>,
 ) {
   const { data, error } = await supabase
     .from("greeting_cards")
@@ -66,15 +65,6 @@ export async function updateCard(
 }
 
 export async function deleteCard(supabase: SupabaseClient, cardId: string, creatorId: string) {
-  // Clean up storage: overlay images and backside PNG
-  const overlayPath = `${creatorId}/overlays/${cardId}`;
-  const { data: overlayFiles } = await supabase.storage.from("card-images").list(overlayPath);
-  if (overlayFiles && overlayFiles.length > 0) {
-    await supabase.storage
-      .from("card-images")
-      .remove(overlayFiles.map((f) => `${overlayPath}/${f.name}`));
-  }
-
   await supabase.storage.from("card-images").remove([`${creatorId}/${cardId}.png`]);
 
   // Delete the DB row
