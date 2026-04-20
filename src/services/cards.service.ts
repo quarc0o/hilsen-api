@@ -48,11 +48,7 @@ export async function getMyCards(supabase: SupabaseClient, userId: string) {
 export async function updateCard(
   supabase: SupabaseClient,
   cardId: string,
-  updates: Partial<{
-    message: string;
-    card_backside_url: string | null;
-    overlay_items: unknown;
-  }>,
+  updates: Partial<{ message: string; overlay_items: unknown }>,
 ) {
   const { data, error } = await supabase
     .from("greeting_cards")
@@ -79,7 +75,7 @@ export async function deleteCard(supabase: SupabaseClient, cardId: string, creat
       .remove(overlayFiles.map((f) => `${overlayPath}/${f.name}`));
   }
 
-  await supabase.storage.from("card-images").remove([`${creatorId}/backsides/${cardId}.png`]);
+  await supabase.storage.from("card-images").remove([`${creatorId}/${cardId}.png`]);
 
   // Delete the DB row
   const { error } = await supabase.from("greeting_cards").delete().eq("id", cardId);

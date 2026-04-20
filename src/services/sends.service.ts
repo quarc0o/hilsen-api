@@ -66,14 +66,24 @@ export async function getMySends(supabase: SupabaseClient, userId: string) {
 }
 
 export async function getSendById(supabase: SupabaseClient, sendId: string) {
-  const { data, error } = await supabase.from("card_sends").select("*").eq("id", sendId).single();
+  const { data, error } = await supabase
+    .from("card_sends")
+    .select("*, greeting_cards(template_id)")
+    .eq("id", sendId)
+    .single();
 
   if (error && error.code === "PGRST116") {
     return null;
   }
 
   if (error) throw error;
-  return data;
+
+  const { greeting_cards, ...send } = data;
+  return {
+    ...send,
+    card_template_id:
+      (greeting_cards as { template_id: string | null } | null)?.template_id ?? null,
+  };
 }
 
 export async function updateScheduledSend(

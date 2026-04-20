@@ -20,6 +20,7 @@ import {
   cancelSendGroup,
 } from "../../services/sends.service.js";
 import { getCardById } from "../../services/cards.service.js";
+import { getTemplateById } from "../../services/templates.service.js";
 import { notFound, forbidden, badRequest } from "../../lib/errors.js";
 
 const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
@@ -106,20 +107,23 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         return notFound(reply, "Send not found");
       }
 
-      // Resolve card_backside_url to a signed URL if it's a storage path
-      const card = await getCardById(fastify.supabase, send.card_id);
-      if (card?.card_backside_url && !card.card_backside_url.startsWith("http")) {
-        const { data } = await fastify.supabase.storage
-          .from("card-images")
-          .createSignedUrl(card.card_backside_url, 3600);
-        if (data?.signedUrl) {
-          send.card_backside_url = data.signedUrl;
-        }
-      } else if (card?.card_backside_url) {
-        send.card_backside_url = card.card_backside_url;
+      const backsidePath = `${send.sender_id}/${send.card_id}.png`;
+      const [{ data: urlData, error: storageError }, template] = await Promise.all([
+        fastify.supabase.storage.from("card-images").createSignedUrl(backsidePath, 3600),
+        send.card_template_id
+          ? getTemplateById(fastify.config.DIRECTUS_URL, send.card_template_id)
+          : Promise.resolve(null),
+      ]);
+
+      if (storageError) {
+        fastify.log.warn({ backsidePath, storageError }, "Failed to create signed URL for backside");
       }
 
-      return send;
+      return {
+        ...send,
+        card_backside_url: urlData?.signedUrl ?? null,
+        card_template_image_url: template?.image_url ?? null,
+      };
     },
   );
   // PATCH /sends/:id — update a scheduled send (or expand into a group with recipient_phones)

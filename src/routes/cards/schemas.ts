@@ -7,7 +7,6 @@ export const CardSchema = Type.Object({
   creator_id: Type.String({ format: "uuid" }),
   template_id: Type.String({ format: "uuid" }),
   status: CardStatus,
-  card_backside_url: Type.Union([Type.String(), Type.Null()]),
   message: Type.Union([Type.String(), Type.Null()]),
   overlay_items: Type.Union([Type.Any(), Type.Null()]),
   created_at: Type.String(),
@@ -24,7 +23,6 @@ export type CreateCardBody = Static<typeof CreateCardBodySchema>;
 
 export const UpdateCardBodySchema = Type.Object({
   message: Type.Optional(Type.String()),
-  card_backside_url: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   overlay_items: Type.Optional(Type.Any()),
 });
 
