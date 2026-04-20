@@ -44,8 +44,8 @@ export async function uploadFileToDirectus(
   ) as ArrayBuffer;
   const mimetype = resolveMimetype(file.filename, file.mimetype);
   const formData = new FormData();
-  formData.append("file", new Blob([arrayBuffer], { type: mimetype }), file.filename);
   if (folderId) formData.append("folder", folderId);
+  formData.append("file", new Blob([arrayBuffer], { type: mimetype }), file.filename);
 
   const res = await fetch(`${directusUrl}/files`, {
     method: "POST",
