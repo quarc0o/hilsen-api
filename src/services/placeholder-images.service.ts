@@ -22,17 +22,30 @@ function mapPlaceholderImage(
 
 export type FileUpload = { buffer: Buffer; filename: string; mimetype: string };
 
+function resolveMimetype(filename: string, mimetype: string): string {
+  if (mimetype !== "application/octet-stream") return mimetype;
+  const ext = filename.split(".").pop()?.toLowerCase();
+  if (ext === "png") return "image/png";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "webp") return "image/webp";
+  if (ext === "gif") return "image/gif";
+  return mimetype;
+}
+
 export async function uploadFileToDirectus(
   directusUrl: string,
   token: string,
   file: FileUpload,
+  folderId?: string,
 ): Promise<string> {
   const arrayBuffer = file.buffer.buffer.slice(
     file.buffer.byteOffset,
     file.buffer.byteOffset + file.buffer.byteLength,
   ) as ArrayBuffer;
+  const mimetype = resolveMimetype(file.filename, file.mimetype);
   const formData = new FormData();
-  formData.append("file", new Blob([arrayBuffer], { type: file.mimetype }), file.filename);
+  formData.append("file", new Blob([arrayBuffer], { type: mimetype }), file.filename);
+  if (folderId) formData.append("folder", folderId);
 
   const res = await fetch(`${directusUrl}/files`, {
     method: "POST",

@@ -63,11 +63,12 @@ const templateRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
 
       // Upload preview + all placeholder images in parallel
       // placeholder files are keyed by overlay UUID (stripped from "placeholder_<uuid>")
+      const folderId = fastify.config.DIRECTUS_UPLOAD_FOLDER_ID;
       const placeholderUuids = Object.keys(placeholderFiles);
       const [previewFileId, ...placeholderFileIds] = await Promise.all([
-        uploadFileToDirectus(directusUrl, token, previewFile),
+        uploadFileToDirectus(directusUrl, token, previewFile, folderId),
         ...placeholderUuids.map((uuid) =>
-          uploadFileToDirectus(directusUrl, token, placeholderFiles[uuid]),
+          uploadFileToDirectus(directusUrl, token, placeholderFiles[uuid], folderId),
         ),
       ]);
 

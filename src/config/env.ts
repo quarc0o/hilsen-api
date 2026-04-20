@@ -14,6 +14,7 @@ export interface EnvConfig {
   APP_BASE_URL: string;
   DIRECTUS_URL: string;
   DIRECTUS_TOKEN: string;
+  DIRECTUS_UPLOAD_FOLDER_ID?: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
   GIT_SHA?: string;
@@ -76,6 +77,9 @@ export const envSchema = {
       type: "string" as const,
     },
     DIRECTUS_TOKEN: {
+      type: "string" as const,
+    },
+    DIRECTUS_UPLOAD_FOLDER_ID: {
       type: "string" as const,
     },
     SENTRY_DSN: {
