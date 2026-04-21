@@ -32,7 +32,7 @@ export async function getDesigns(
     offset?: number;
   } = {},
 ) {
-  const { category, search, limit = 20, offset = 0 } = options;
+  const { category, search, limit = 100, offset = 0 } = options;
 
   const params = new URLSearchParams({
     limit: String(limit),
