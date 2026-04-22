@@ -18,6 +18,9 @@ export interface EnvConfig {
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
   GIT_SHA?: string;
+  POSTHOG_HOST?: string;
+  POSTHOG_PROJECT_ID?: string;
+  POSTHOG_PERSONAL_API_KEY?: string;
 }
 
 declare module "fastify" {
@@ -89,6 +92,16 @@ export const envSchema = {
       type: "string" as const,
     },
     GIT_SHA: {
+      type: "string" as const,
+    },
+    POSTHOG_HOST: {
+      type: "string" as const,
+      default: "https://eu.posthog.com",
+    },
+    POSTHOG_PROJECT_ID: {
+      type: "string" as const,
+    },
+    POSTHOG_PERSONAL_API_KEY: {
       type: "string" as const,
     },
   },

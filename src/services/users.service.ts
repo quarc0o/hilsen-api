@@ -1,4 +1,5 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
+import { deletePostHogPerson, type PostHogConfig } from "../lib/posthog.js";
 
 export async function getUserById(supabase: SupabaseClient, userId: string) {
   const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
@@ -42,50 +43,80 @@ export async function updateUser(
   return data;
 }
 
-export async function deleteUser(supabase: SupabaseClient, userId: string) {
-  // Clean up all user images from storage before deleting the DB row
+export interface DeleteUserDeps {
+  supabase: SupabaseClient;
+  userId: string;
+  supabaseId: string;
+  posthog: PostHogConfig | null;
+  // Called for non-fatal cleanup failures (orphan storage / PostHog miss).
+  // Fatal errors are thrown.
+  onWarning?: (message: string, detail: Record<string, unknown>) => void;
+}
+
+// Deletes a user and every trace of them:
+//   1. auth.users row — DB rows cascade (public.users → greeting_cards, card_sends)
+//      via FK ON DELETE CASCADE (migration 20260422000000).
+//   2. Storage objects under card-images/{userId}/.
+//   3. PostHog person + events.
+//
+// Auth delete must succeed (otherwise the user still has a live session).
+// Storage and PostHog failures are logged but not fatal — leftover files or
+// analytics records are benign and can be swept later.
+export async function deleteUser(deps: DeleteUserDeps): Promise<void> {
+  const { supabase, userId, supabaseId, posthog, onWarning } = deps;
+
+  const { error: authError } = await supabase.auth.admin.deleteUser(supabaseId);
+  if (authError) throw authError;
+
+  try {
+    await removeUserStorage(supabase, userId);
+  } catch (error) {
+    onWarning?.("failed to delete user storage", { userId, error });
+  }
+
+  if (posthog) {
+    const result = await deletePostHogPerson(posthog, supabaseId);
+    if (!result.ok) {
+      onWarning?.("failed to delete posthog person", { supabaseId, result });
+    }
+  }
+}
+
+async function removeUserStorage(supabase: SupabaseClient, userId: string): Promise<void> {
   const bucket = supabase.storage.from("card-images");
   const userFolder = `${userId}`;
 
-  // List all objects under the user's folder and delete them in batches
   const { data: files } = await bucket.list(userFolder, { limit: 1000 });
-  if (files && files.length > 0) {
-    // Files may be nested in subfolders — list each subfolder recursively
-    const allPaths: string[] = [];
+  if (!files || files.length === 0) return;
 
-    for (const item of files) {
-      if (item.id === null) {
-        // It's a folder — list its contents
-        const { data: subFiles } = await bucket.list(`${userFolder}/${item.name}`, { limit: 1000 });
-        if (subFiles) {
-          for (const sub of subFiles) {
-            if (sub.id === null) {
-              // Another level (e.g. overlays/{cardId}/)
-              const { data: deepFiles } = await bucket.list(
-                `${userFolder}/${item.name}/${sub.name}`,
-                { limit: 1000 },
+  const allPaths: string[] = [];
+
+  for (const item of files) {
+    if (item.id === null) {
+      const { data: subFiles } = await bucket.list(`${userFolder}/${item.name}`, { limit: 1000 });
+      if (subFiles) {
+        for (const sub of subFiles) {
+          if (sub.id === null) {
+            const { data: deepFiles } = await bucket.list(
+              `${userFolder}/${item.name}/${sub.name}`,
+              { limit: 1000 },
+            );
+            if (deepFiles) {
+              allPaths.push(
+                ...deepFiles.map((f) => `${userFolder}/${item.name}/${sub.name}/${f.name}`),
               );
-              if (deepFiles) {
-                allPaths.push(
-                  ...deepFiles.map((f) => `${userFolder}/${item.name}/${sub.name}/${f.name}`),
-                );
-              }
-            } else {
-              allPaths.push(`${userFolder}/${item.name}/${sub.name}`);
             }
+          } else {
+            allPaths.push(`${userFolder}/${item.name}/${sub.name}`);
           }
         }
-      } else {
-        allPaths.push(`${userFolder}/${item.name}`);
       }
-    }
-
-    if (allPaths.length > 0) {
-      await bucket.remove(allPaths);
+    } else {
+      allPaths.push(`${userFolder}/${item.name}`);
     }
   }
 
-  const { error } = await supabase.from("users").delete().eq("id", userId);
-
-  if (error) throw error;
+  if (allPaths.length > 0) {
+    await bucket.remove(allPaths);
+  }
 }

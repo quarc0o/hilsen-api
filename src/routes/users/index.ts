@@ -2,6 +2,7 @@ import { type FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { UserSchema, UpdateUserBodySchema } from "./schemas.js";
 import { getUserById, updateUser, deleteUser } from "../../services/users.service.js";
 import { notFound } from "../../lib/errors.js";
+import { getPostHogConfig } from "../../lib/posthog.js";
 
 const userRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.get(
@@ -45,7 +46,18 @@ const userRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       preHandler: [fastify.authenticate],
     },
     async (request, reply) => {
-      await deleteUser(fastify.supabase, request.userId);
+      await deleteUser({
+        supabase: fastify.supabase,
+        userId: request.userId,
+        supabaseId: request.supabaseId,
+        posthog: getPostHogConfig(fastify.config),
+        onWarning: (message, detail) => {
+          fastify.log.warn(detail, message);
+          request.captureException(new Error(message), {
+            "delete.user_id": request.userId,
+          });
+        },
+      });
       return reply.code(204).send();
     },
   );
