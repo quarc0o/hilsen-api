@@ -16,11 +16,15 @@ export function getPostHogConfig(env: EnvConfig): PostHogConfig | null {
 }
 
 // Best-effort GDPR delete for a PostHog person by distinct_id.
-// Returns true on success, false on failure (caller decides how to react).
+// Treats `persons_found === 0` as a failure so callers can surface a warning
+// when the identity mapping is off (e.g. client identified with a different id).
 export async function deletePostHogPerson(
   config: PostHogConfig,
   distinctId: string,
-): Promise<{ ok: true } | { ok: false; status?: number; body?: string; error?: unknown }> {
+): Promise<
+  | { ok: true; personsDeleted: number }
+  | { ok: false; status?: number; body?: string; error?: unknown }
+> {
   const url = `${config.host.replace(/\/$/, "")}/api/projects/${config.projectId}/persons/bulk_delete/`;
   try {
     const response = await fetch(url, {
@@ -31,12 +35,25 @@ export async function deletePostHogPerson(
       },
       body: JSON.stringify({ distinct_ids: [distinctId], delete_events: true }),
     });
+    const rawBody = await response.text().catch(() => "");
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      return { ok: false, status: response.status, body };
+      return { ok: false, status: response.status, body: rawBody };
     }
-    return { ok: true };
+    const parsed = safeParseJson(rawBody) as { persons_found?: number; persons_deleted?: number };
+    const personsDeleted = parsed?.persons_deleted ?? 0;
+    if (personsDeleted === 0) {
+      return { ok: false, status: response.status, body: rawBody };
+    }
+    return { ok: true, personsDeleted };
   } catch (error) {
     return { ok: false, error };
+  }
+}
+
+function safeParseJson(body: string): unknown {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return null;
   }
 }
