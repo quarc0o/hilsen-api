@@ -164,6 +164,10 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         );
       }
 
+      // Short edge cache: absorbs OG scraper bursts without going stale past the
+      // 1-hour signed URL window. Signed URL is still valid when cache expires.
+      reply.header("Cache-Control", "public, max-age=60");
+
       return {
         ...send,
         card_backside_url: urlData?.signedUrl ?? null,

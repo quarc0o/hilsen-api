@@ -24,6 +24,7 @@ export const CardSendSchema = Type.Object({
   created_at: Type.String(),
   card_backside_url: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   card_design_image_url: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  sender_first_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
 export type CardSend = Static<typeof CardSendSchema>;
