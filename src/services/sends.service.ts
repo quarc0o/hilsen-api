@@ -111,6 +111,7 @@ export async function getMySends(supabase: SupabaseClient, userId: string) {
     .from("card_sends")
     .select("*, greeting_cards(design_id)")
     .eq("sender_id", userId)
+    .neq("status", "canceled")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -189,13 +190,102 @@ export async function updateScheduledSend(
   return { data };
 }
 
+async function fetchSenderFirstName(supabase: SupabaseClient, senderId: string) {
+  const { data: sender } = await supabase
+    .from("users")
+    .select("first_name")
+    .eq("id", senderId)
+    .single();
+  return sender?.first_name ?? "Noen";
+}
+
+async function deliverAndUpdate(
+  supabase: SupabaseClient,
+  send: { id: string; recipient_phone: string },
+  senderFirstName: string,
+  twilioConfig: TwilioConfig,
+  appBaseUrl: string,
+) {
+  const cardViewUrl = `${appBaseUrl}/s/${send.id}`;
+  const result = await sendCardSms(
+    twilioConfig,
+    send.recipient_phone,
+    senderFirstName,
+    cardViewUrl,
+    { cardSendId: send.id },
+  );
+
+  const update = result.success
+    ? { status: "sent", sent_at: new Date().toISOString(), error: null }
+    : { status: "failed", error: result.error ?? "Unknown error" };
+
+  const { error } = await supabase.from("card_sends").update(update).eq("id", send.id);
+  if (error) throw error;
+}
+
+export async function sendNow(
+  supabase: SupabaseClient,
+  sendId: string,
+  senderId: string,
+  twilioConfig: TwilioConfig,
+  appBaseUrl: string,
+) {
+  const send = await getSendById(supabase, sendId);
+  if (!send) return { error: "not_found" as const };
+  if (send.sender_id !== senderId) return { error: "forbidden" as const };
+  if (send.status !== "scheduled") return { error: "already_sent" as const };
+
+  const senderFirstName = await fetchSenderFirstName(supabase, senderId);
+  await deliverAndUpdate(supabase, send, senderFirstName, twilioConfig, appBaseUrl);
+
+  const { data, error } = await supabase.from("card_sends").select("*").eq("id", sendId).single();
+  if (error) throw error;
+
+  return { data };
+}
+
+export async function sendGroupNow(
+  supabase: SupabaseClient,
+  sendGroupId: string,
+  senderId: string,
+  twilioConfig: TwilioConfig,
+  appBaseUrl: string,
+) {
+  const { data: sends, error: fetchError } = await supabase
+    .from("card_sends")
+    .select("*")
+    .eq("send_group_id", sendGroupId)
+    .eq("sender_id", senderId)
+    .eq("status", "scheduled");
+
+  if (fetchError) throw fetchError;
+  if (!sends || sends.length === 0) return { error: "not_found" as const };
+
+  const senderFirstName = await fetchSenderFirstName(supabase, senderId);
+
+  await Promise.all(
+    sends.map((send) =>
+      deliverAndUpdate(supabase, send, senderFirstName, twilioConfig, appBaseUrl),
+    ),
+  );
+
+  const ids = sends.map((s) => s.id);
+  const { data, error } = await supabase.from("card_sends").select("*").in("id", ids);
+  if (error) throw error;
+
+  return { data };
+}
+
 export async function cancelSend(supabase: SupabaseClient, sendId: string, senderId: string) {
   const send = await getSendById(supabase, sendId);
   if (!send) return { error: "not_found" as const };
   if (send.sender_id !== senderId) return { error: "forbidden" as const };
   if (send.status !== "scheduled") return { error: "already_sent" as const };
 
-  const { error } = await supabase.from("card_sends").delete().eq("id", sendId);
+  const { error } = await supabase
+    .from("card_sends")
+    .update({ status: "canceled" })
+    .eq("id", sendId);
 
   if (error) throw error;
   return { success: true };
@@ -235,12 +325,12 @@ export async function updateSendGroup(
     const normalizedPhones = updates.recipientPhones.map((p) => p.replace(/^\+/, ""));
     const newPhones = new Set(normalizedPhones);
 
-    // Delete sends for removed phones
+    // Soft-cancel sends for removed phones
     const phonesToRemove = existingSends.filter((s) => !newPhones.has(s.recipient_phone));
     if (phonesToRemove.length > 0) {
       const { error } = await supabase
         .from("card_sends")
-        .delete()
+        .update({ status: "canceled" })
         .in(
           "id",
           phonesToRemove.map((s) => s.id),
@@ -301,7 +391,7 @@ export async function cancelSendGroup(
 
   const { error } = await supabase
     .from("card_sends")
-    .delete()
+    .update({ status: "canceled" })
     .eq("send_group_id", sendGroupId)
     .eq("sender_id", senderId)
     .eq("status", "scheduled");

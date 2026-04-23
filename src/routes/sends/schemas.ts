@@ -4,6 +4,7 @@ export enum SendStatusEnum {
   Scheduled = "scheduled",
   Sent = "sent",
   Failed = "failed",
+  Canceled = "canceled",
 }
 
 export const SendStatus = Type.Enum(SendStatusEnum);

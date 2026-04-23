@@ -12,6 +12,8 @@ import {
 import {
   sendCard,
   sendCardImmediate,
+  sendNow,
+  sendGroupNow,
   getMySends,
   getReceivedSends,
   getSendById,
@@ -253,6 +255,70 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (result.error === "not_found") return notFound(reply, "Send group not found");
 
       return reply.code(204).send();
+    },
+  );
+
+  // POST /sends/:id/send-now — deliver a scheduled send immediately
+  fastify.post(
+    "/sends/:id/send-now",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        params: SendIdParamsSchema,
+        response: {
+          200: CardSendSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await sendNow(
+        fastify.supabase,
+        request.params.id,
+        request.userId,
+        {
+          accountSid: fastify.config.TWILIO_ACCOUNT_SID,
+          authToken: fastify.config.TWILIO_AUTH_TOKEN,
+          senderId: fastify.config.TWILIO_SENDER_ID,
+        },
+        fastify.config.APP_BASE_URL,
+      );
+
+      if (result.error === "not_found") return notFound(reply, "Send not found");
+      if (result.error === "forbidden") return forbidden(reply);
+      if (result.error === "already_sent") return badRequest(reply, "Send has already been sent");
+
+      return result.data;
+    },
+  );
+
+  // POST /send-groups/:groupId/send-now — deliver all scheduled sends in a group immediately
+  fastify.post(
+    "/send-groups/:groupId/send-now",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        params: SendGroupIdParamsSchema,
+        response: {
+          200: Type.Array(CardSendSchema),
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await sendGroupNow(
+        fastify.supabase,
+        request.params.groupId,
+        request.userId,
+        {
+          accountSid: fastify.config.TWILIO_ACCOUNT_SID,
+          authToken: fastify.config.TWILIO_AUTH_TOKEN,
+          senderId: fastify.config.TWILIO_SENDER_ID,
+        },
+        fastify.config.APP_BASE_URL,
+      );
+
+      if (result.error === "not_found") return notFound(reply, "Send group not found");
+
+      return result.data;
     },
   );
 };
