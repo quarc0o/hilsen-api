@@ -6,6 +6,21 @@ export interface SendsWorkerConfig {
   appBaseUrl: string;
 }
 
+export const MONTHLY_SEND_LIMIT = 2;
+
+export async function getMonthlySendUsage(supabase: SupabaseClient, senderId: string) {
+  const { data, error } = await supabase.rpc("count_card_sends_this_month", {
+    p_sender_id: senderId,
+  });
+  if (error) throw error;
+  const used = (data as number | null) ?? 0;
+  return {
+    used,
+    limit: MONTHLY_SEND_LIMIT,
+    remaining: Math.max(0, MONTHLY_SEND_LIMIT - used),
+  };
+}
+
 export async function sendCard(
   supabase: SupabaseClient,
   senderId: string,
@@ -138,7 +153,7 @@ export async function getMySends(supabase: SupabaseClient, userId: string) {
 export async function getSendById(supabase: SupabaseClient, sendId: string) {
   const { data, error } = await supabase
     .from("card_sends")
-    .select("*, greeting_cards(design_id)")
+    .select("*, greeting_cards(design_id), users!card_sends_sender_id_fkey(first_name)")
     .eq("id", sendId)
     .single();
 
@@ -148,10 +163,11 @@ export async function getSendById(supabase: SupabaseClient, sendId: string) {
 
   if (error) throw error;
 
-  const { greeting_cards, ...send } = data;
+  const { greeting_cards, users, ...send } = data;
   return {
     ...send,
     card_design_id: (greeting_cards as { design_id: string | null } | null)?.design_id ?? null,
+    sender_first_name: (users as { first_name: string | null } | null)?.first_name ?? null,
   };
 }
 
@@ -342,7 +358,32 @@ export async function updateSendGroup(
   if (fetchError) throw fetchError;
   if (!existingSends || existingSends.length === 0) return { error: "not_found" as const };
 
-  // Update scheduled_at on all existing scheduled sends if provided
+  // Compute the recipient diff up front so we can quota-check before any writes.
+  let phonesToRemoveIds: string[] = [];
+  let phonesToAdd: string[] = [];
+  let normalizedPhones: string[] = [];
+  if (updates.recipientPhones) {
+    const existingPhones = new Set(existingSends.map((s) => s.recipient_phone));
+    normalizedPhones = updates.recipientPhones.map((p) => p.replace(/^\+/, ""));
+    const newPhones = new Set(normalizedPhones);
+    const phonesToRemove = existingSends.filter((s) => !newPhones.has(s.recipient_phone));
+    phonesToRemoveIds = phonesToRemove.map((s) => s.id);
+    phonesToAdd = normalizedPhones.filter((p) => !existingPhones.has(p));
+  }
+
+  // Quota check: only rows we're inserting count; rows being canceled in the same
+  // op credit back, so swapping recipients at the limit is legal.
+  if (phonesToAdd.length > 0) {
+    const { used, limit, remaining } = await getMonthlySendUsage(supabase, senderId);
+    const effectiveRemaining = remaining + phonesToRemoveIds.length;
+    if (phonesToAdd.length > effectiveRemaining) {
+      return {
+        error: "quota_exceeded" as const,
+        quota: { used, limit, remaining, requested: phonesToAdd.length },
+      };
+    }
+  }
+
   if (updates.scheduledAt) {
     const { error } = await supabase
       .from("card_sends")
@@ -354,30 +395,17 @@ export async function updateSendGroup(
     if (error) throw error;
   }
 
-  // Diff recipient phones if provided
   if (updates.recipientPhones) {
-    const existingPhones = new Set(existingSends.map((s) => s.recipient_phone));
-    const normalizedPhones = updates.recipientPhones.map((p) => p.replace(/^\+/, ""));
-    const newPhones = new Set(normalizedPhones);
-
-    // Soft-cancel sends for removed phones
-    const phonesToRemove = existingSends.filter((s) => !newPhones.has(s.recipient_phone));
-    if (phonesToRemove.length > 0) {
+    if (phonesToRemoveIds.length > 0) {
       const { error } = await supabase
         .from("card_sends")
         .update({ status: "canceled" })
-        .in(
-          "id",
-          phonesToRemove.map((s) => s.id),
-        );
+        .in("id", phonesToRemoveIds);
 
       if (error) throw error;
     }
 
-    // Insert sends for added phones
-    const phonesToAdd = normalizedPhones.filter((p) => !existingPhones.has(p));
     if (phonesToAdd.length > 0) {
-      // Use card_id and scheduled_at from an existing send in the group
       const reference = existingSends[0];
       const scheduledAt = updates.scheduledAt ?? reference.scheduled_at;
 
@@ -397,7 +425,6 @@ export async function updateSendGroup(
     }
   }
 
-  // Re-fetch and return the current state of the group
   const { data, error } = await supabase
     .from("card_sends")
     .select("*")

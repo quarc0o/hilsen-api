@@ -10,6 +10,7 @@ import {
   SendGroupIdParamsSchema,
   UpdateSendBodySchema,
   UpdateSendGroupBodySchema,
+  QuotaExceededSchema,
 } from "./schemas.js";
 import {
   sendCard,
@@ -18,11 +19,13 @@ import {
   sendGroupNow,
   getMySends,
   getReceivedSends,
+  getSendById,
   getSendByShortCode,
   updateScheduledSend,
   cancelSend,
   updateSendGroup,
   cancelSendGroup,
+  getMonthlySendUsage,
 } from "../../services/sends.service.js";
 import { getCardById } from "../../services/cards.service.js";
 import { getDesignById, getDesignsByIds } from "../../services/designs.service.js";
@@ -44,6 +47,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         body: SendCardBodySchema,
         response: {
           201: Type.Array(CardSendSchema),
+          429: QuotaExceededSchema,
         },
       },
     },
@@ -55,6 +59,22 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
+
+      const requested = request.body.recipient_phones.length;
+      const { used, limit, remaining } = await getMonthlySendUsage(
+        fastify.supabase,
+        request.userId,
+      );
+      if (requested > remaining) {
+        return reply.code(429).send({
+          error: `Månedlig grense nådd. Prøvde å sende ${requested} kort, men brukeren har kun igjen ${remaining} av ${limit} kort denne måneden.`,
+          used,
+          limit,
+          remaining,
+          requested,
+        });
+      }
+
       const sends = request.body.scheduled_at
         ? await sendCard(fastify.supabase, request.userId, request.params.id, {
             recipientPhones: request.body.recipient_phones,
@@ -124,6 +144,61 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
     },
   );
 
+  // GET /sends/:id (authenticated — sender or recipient only)
+  // Flutter client uses this to fetch one of the caller's own sends or a send
+  // they received. Recipients are matched by phone number, since card_sends
+  // stores recipient_phone rather than a user id.
+  fastify.get(
+    "/sends/:id",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        params: SendIdParamsSchema,
+        response: {
+          200: CardSendSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const send = await getSendById(fastify.supabase, request.params.id);
+      if (!send) {
+        return notFound(reply, "Send not found");
+      }
+
+      if (send.sender_id !== request.userId) {
+        const { data: user } = await fastify.supabase
+          .from("users")
+          .select("phone_number")
+          .eq("id", request.userId)
+          .single();
+        if (!user?.phone_number || user.phone_number !== send.recipient_phone) {
+          return forbidden(reply);
+        }
+      }
+
+      const backsidePath = `${send.sender_id}/${send.card_id}.png`;
+      const [{ data: urlData, error: storageError }, design] = await Promise.all([
+        fastify.supabase.storage.from("card-images").createSignedUrl(backsidePath, 3600),
+        send.card_design_id
+          ? getDesignById(fastify.config.DIRECTUS_URL, send.card_design_id)
+          : Promise.resolve(null),
+      ]);
+
+      if (storageError) {
+        fastify.log.warn(
+          { backsidePath, storageError },
+          "Failed to create signed URL for backside",
+        );
+      }
+
+      return {
+        ...send,
+        card_backside_url: urlData?.signedUrl ?? null,
+        card_design_image_url: design?.image_url ?? null,
+      };
+    },
+  );
+
   // GET /sends/by-code/:code (public — no auth, rate-limited)
   // Recipients land here from SMS links (hilsen.app/s/<code>). Short code is
   // 72 bits of entropy; rate limit defends against online guessing of PII.
@@ -185,6 +260,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         body: UpdateSendBodySchema,
         response: {
           200: Type.Union([CardSendSchema, Type.Array(CardSendSchema)]),
+          429: QuotaExceededSchema,
         },
       },
     },
@@ -203,6 +279,16 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (result.error === "not_found") return notFound(reply, "Send not found");
       if (result.error === "forbidden") return forbidden(reply);
       if (result.error === "already_sent") return badRequest(reply, "Send has already been sent");
+      if (result.error === "quota_exceeded") {
+        const { used, limit, remaining, requested } = result.quota;
+        return reply.code(429).send({
+          error: `Månedlig grense nådd. Prøvde å legge til ${requested} nye mottakere, men brukeren har kun igjen ${remaining} av ${limit} kort denne måneden.`,
+          used,
+          limit,
+          remaining,
+          requested,
+        });
+      }
 
       return result.data;
     },
@@ -238,6 +324,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         body: UpdateSendGroupBodySchema,
         response: {
           200: Type.Array(CardSendSchema),
+          429: QuotaExceededSchema,
         },
       },
     },
@@ -253,6 +340,16 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       );
 
       if (result.error === "not_found") return notFound(reply, "Send group not found");
+      if (result.error === "quota_exceeded") {
+        const { used, limit, remaining, requested } = result.quota;
+        return reply.code(429).send({
+          error: `Månedlig grense nådd. Prøvde å legge til ${requested} nye mottakere, men brukeren har kun igjen ${remaining} av ${limit} kort denne måneden.`,
+          used,
+          limit,
+          remaining,
+          requested,
+        });
+      }
 
       return result.data;
     },

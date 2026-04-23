@@ -74,3 +74,13 @@ export const UpdateSendGroupBodySchema = Type.Object({
 });
 
 export type UpdateSendGroupBody = Static<typeof UpdateSendGroupBodySchema>;
+
+export const QuotaExceededSchema = Type.Object({
+  error: Type.String(),
+  used: Type.Integer(),
+  limit: Type.Integer(),
+  remaining: Type.Integer(),
+  requested: Type.Integer(),
+});
+
+export type QuotaExceeded = Static<typeof QuotaExceededSchema>;
