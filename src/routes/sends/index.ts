@@ -1,10 +1,12 @@
 import { type FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { Type } from "@sinclair/typebox";
+import rateLimit from "@fastify/rate-limit";
 import {
   CardSendSchema,
   SendCardBodySchema,
   SendCardParamsSchema,
   SendIdParamsSchema,
+  SendShortCodeParamsSchema,
   SendGroupIdParamsSchema,
   UpdateSendBodySchema,
   UpdateSendGroupBodySchema,
@@ -16,7 +18,7 @@ import {
   sendGroupNow,
   getMySends,
   getReceivedSends,
-  getSendById,
+  getSendByShortCode,
   updateScheduledSend,
   cancelSend,
   updateSendGroup,
@@ -27,6 +29,11 @@ import { getDesignById, getDesignsByIds } from "../../services/designs.service.j
 import { notFound, forbidden, badRequest } from "../../lib/errors.js";
 
 const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
+  await fastify.register(rateLimit, {
+    global: false,
+    keyGenerator: (req) => req.ip,
+  });
+
   // POST /cards/:id/send
   fastify.post(
     "/cards/:id/send",
@@ -117,19 +124,27 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
     },
   );
 
-  // GET /sends/:id (public — no auth required)
+  // GET /sends/by-code/:code (public — no auth, rate-limited)
+  // Recipients land here from SMS links (hilsen.app/s/<code>). Short code is
+  // 72 bits of entropy; rate limit defends against online guessing of PII.
   fastify.get(
-    "/sends/:id",
+    "/sends/by-code/:code",
     {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: "1 minute",
+        },
+      },
       schema: {
-        params: SendIdParamsSchema,
+        params: SendShortCodeParamsSchema,
         response: {
           200: CardSendSchema,
         },
       },
     },
     async (request, reply) => {
-      const send = await getSendById(fastify.supabase, request.params.id);
+      const send = await getSendByShortCode(fastify.supabase, request.params.code);
       if (!send) {
         return notFound(reply, "Send not found");
       }
@@ -143,7 +158,10 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       ]);
 
       if (storageError) {
-        fastify.log.warn({ backsidePath, storageError }, "Failed to create signed URL for backside");
+        fastify.log.warn(
+          { backsidePath, storageError },
+          "Failed to create signed URL for backside",
+        );
       }
 
       return {

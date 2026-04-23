@@ -44,41 +44,55 @@ export async function sendCardImmediate(
   const { recipientPhones } = options;
   const sendGroupId = recipientPhones.length > 1 ? crypto.randomUUID() : null;
 
-  const { data: sender } = await supabase
-    .from("users")
-    .select("first_name")
-    .eq("id", senderId)
-    .single();
-  const senderFirstName = sender?.first_name ?? "Noen";
+  const senderFirstName = await fetchSenderFirstName(supabase, senderId);
+
+  const baseRows = recipientPhones.map((rawPhone) => ({
+    card_id: cardId,
+    sender_id: senderId,
+    recipient_phone: rawPhone.replace(/^\+/, ""),
+    send_group_id: sendGroupId,
+    status: "scheduled" as const,
+    scheduled_at: null,
+    sent_at: null,
+  }));
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("card_sends")
+    .insert(baseRows)
+    .select();
+
+  if (insertError) throw insertError;
 
   const now = new Date().toISOString();
-  const rows = await Promise.all(
-    recipientPhones.map(async (rawPhone) => {
-      const id = crypto.randomUUID();
-      const phone = rawPhone.replace(/^\+/, "");
-      const cardViewUrl = `${appBaseUrl}/s/${id}`;
-      const result = await sendCardSms(twilioConfig, phone, senderFirstName, cardViewUrl, {
-        cardSendId: id,
-      });
+  await Promise.all(
+    inserted.map(async (send) => {
+      const cardViewUrl = `${appBaseUrl}/s/${send.short_code}`;
+      const result = await sendCardSms(
+        twilioConfig,
+        send.recipient_phone,
+        senderFirstName,
+        cardViewUrl,
+        { cardSendId: send.id },
+      );
 
-      return {
-        id,
-        card_id: cardId,
-        sender_id: senderId,
-        recipient_phone: phone,
-        send_group_id: sendGroupId,
-        status: result.success ? "sent" : "failed",
-        scheduled_at: null,
-        sent_at: result.success ? now : null,
-        error: result.success ? null : (result.error ?? "Unknown error"),
-      };
+      const update = result.success
+        ? { status: "sent", sent_at: now, error: null }
+        : { status: "failed", error: result.error ?? "Unknown error" };
+
+      const { error } = await supabase.from("card_sends").update(update).eq("id", send.id);
+      if (error) throw error;
     }),
   );
 
-  const { data, error } = await supabase.from("card_sends").insert(rows).select();
+  const { data, error } = await supabase
+    .from("card_sends")
+    .select("*")
+    .in(
+      "id",
+      inserted.map((s) => s.id),
+    );
 
   if (error) throw error;
-
   return data;
 }
 
@@ -126,6 +140,26 @@ export async function getSendById(supabase: SupabaseClient, sendId: string) {
     .from("card_sends")
     .select("*, greeting_cards(design_id)")
     .eq("id", sendId)
+    .single();
+
+  if (error && error.code === "PGRST116") {
+    return null;
+  }
+
+  if (error) throw error;
+
+  const { greeting_cards, ...send } = data;
+  return {
+    ...send,
+    card_design_id: (greeting_cards as { design_id: string | null } | null)?.design_id ?? null,
+  };
+}
+
+export async function getSendByShortCode(supabase: SupabaseClient, shortCode: string) {
+  const { data, error } = await supabase
+    .from("card_sends")
+    .select("*, greeting_cards(design_id)")
+    .eq("short_code", shortCode)
     .single();
 
   if (error && error.code === "PGRST116") {
@@ -201,12 +235,12 @@ async function fetchSenderFirstName(supabase: SupabaseClient, senderId: string) 
 
 async function deliverAndUpdate(
   supabase: SupabaseClient,
-  send: { id: string; recipient_phone: string },
+  send: { id: string; short_code: string; recipient_phone: string },
   senderFirstName: string,
   twilioConfig: TwilioConfig,
   appBaseUrl: string,
 ) {
-  const cardViewUrl = `${appBaseUrl}/s/${send.id}`;
+  const cardViewUrl = `${appBaseUrl}/s/${send.short_code}`;
   const result = await sendCardSms(
     twilioConfig,
     send.recipient_phone,
@@ -421,7 +455,7 @@ export async function processScheduledSends(supabase: SupabaseClient, config: Se
       .single();
 
     const senderFirstName = sender?.first_name ?? "Noen";
-    const cardViewUrl = `${config.appBaseUrl}/s/${send.id}`;
+    const cardViewUrl = `${config.appBaseUrl}/s/${send.short_code}`;
     const result = await sendCardSms(
       config.twilio,
       send.recipient_phone,

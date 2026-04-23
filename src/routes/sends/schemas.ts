@@ -11,6 +11,7 @@ export const SendStatus = Type.Enum(SendStatusEnum);
 
 export const CardSendSchema = Type.Object({
   id: Type.String({ format: "uuid" }),
+  short_code: Type.String(),
   card_id: Type.String({ format: "uuid" }),
   sender_id: Type.String({ format: "uuid" }),
   recipient_phone: Type.Union([Type.String(), Type.Null()]),
@@ -45,6 +46,12 @@ export const SendIdParamsSchema = Type.Object({
 });
 
 export type SendIdParams = Static<typeof SendIdParamsSchema>;
+
+export const SendShortCodeParamsSchema = Type.Object({
+  code: Type.String(),
+});
+
+export type SendShortCodeParams = Static<typeof SendShortCodeParamsSchema>;
 
 export const SendGroupIdParamsSchema = Type.Object({
   groupId: Type.String({ format: "uuid" }),
