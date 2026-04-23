@@ -11,6 +11,7 @@ import {
   UpdateSendBodySchema,
   UpdateSendGroupBodySchema,
   QuotaExceededSchema,
+  RecipientsOptedOutSchema,
 } from "./schemas.js";
 import {
   sendCard,
@@ -27,6 +28,7 @@ import {
   cancelSendGroup,
   getMonthlySendUsage,
 } from "../../services/sends.service.js";
+import { getOptedOutPhones } from "../../services/opt-outs.service.js";
 import { getCardById } from "../../services/cards.service.js";
 import { getDesignById, getDesignsByIds } from "../../services/designs.service.js";
 import { notFound, forbidden, badRequest } from "../../lib/errors.js";
@@ -47,6 +49,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         body: SendCardBodySchema,
         response: {
           201: Type.Array(CardSendSchema),
+          400: RecipientsOptedOutSchema,
           429: QuotaExceededSchema,
         },
       },
@@ -58,6 +61,17 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       }
       if (card.creator_id !== request.userId) {
         return forbidden(reply);
+      }
+
+      const optedOut = await getOptedOutPhones(
+        fastify.supabase,
+        request.body.recipient_phones,
+      );
+      if (optedOut.size > 0) {
+        return reply.code(400).send({
+          error: `${optedOut.size} mottaker(e) har reservert seg fra å motta SMS fra Hilsen. Fjern dem for å fortsette.`,
+          opted_out: Array.from(optedOut),
+        });
       }
 
       const requested = request.body.recipient_phones.length;
@@ -260,6 +274,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         body: UpdateSendBodySchema,
         response: {
           200: Type.Union([CardSendSchema, Type.Array(CardSendSchema)]),
+          400: RecipientsOptedOutSchema,
           429: QuotaExceededSchema,
         },
       },
@@ -279,6 +294,12 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (result.error === "not_found") return notFound(reply, "Send not found");
       if (result.error === "forbidden") return forbidden(reply);
       if (result.error === "already_sent") return badRequest(reply, "Send has already been sent");
+      if (result.error === "recipients_opted_out") {
+        return reply.code(400).send({
+          error: `${result.opted_out.length} mottaker(e) har reservert seg fra å motta SMS fra Hilsen. Fjern dem for å fortsette.`,
+          opted_out: result.opted_out,
+        });
+      }
       if (result.error === "quota_exceeded") {
         const { used, limit, remaining, requested } = result.quota;
         return reply.code(429).send({
@@ -324,6 +345,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         body: UpdateSendGroupBodySchema,
         response: {
           200: Type.Array(CardSendSchema),
+          400: RecipientsOptedOutSchema,
           429: QuotaExceededSchema,
         },
       },
@@ -340,6 +362,12 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       );
 
       if (result.error === "not_found") return notFound(reply, "Send group not found");
+      if (result.error === "recipients_opted_out") {
+        return reply.code(400).send({
+          error: `${result.opted_out.length} mottaker(e) har reservert seg fra å motta SMS fra Hilsen. Fjern dem for å fortsette.`,
+          opted_out: result.opted_out,
+        });
+      }
       if (result.error === "quota_exceeded") {
         const { used, limit, remaining, requested } = result.quota;
         return reply.code(429).send({

@@ -1,12 +1,13 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { sendCardSms, type TwilioConfig } from "./notifications.service.js";
+import { getOptedOutPhones } from "./opt-outs.service.js";
 
 export interface SendsWorkerConfig {
   twilio: TwilioConfig;
   appBaseUrl: string;
 }
 
-export const MONTHLY_SEND_LIMIT = 2;
+export const MONTHLY_SEND_LIMIT = 3;
 
 export async function getMonthlySendUsage(supabase: SupabaseClient, senderId: string) {
   const { data, error } = await supabase.rpc("count_card_sends_this_month", {
@@ -78,6 +79,7 @@ export async function sendCardImmediate(
 
   if (insertError) throw insertError;
 
+  const privacyUrl = `${appBaseUrl}/personvern`;
   const now = new Date().toISOString();
   await Promise.all(
     inserted.map(async (send) => {
@@ -87,6 +89,7 @@ export async function sendCardImmediate(
         send.recipient_phone,
         senderFirstName,
         cardViewUrl,
+        privacyUrl,
         { cardSendId: send.id },
       );
 
@@ -225,6 +228,16 @@ export async function updateScheduledSend(
   }
 
   // Simple single-field updates
+  if (updates.recipientPhone) {
+    const optedOut = await getOptedOutPhones(supabase, [updates.recipientPhone]);
+    if (optedOut.size > 0) {
+      return {
+        error: "recipients_opted_out" as const,
+        opted_out: Array.from(optedOut),
+      };
+    }
+  }
+
   const updateFields: Record<string, unknown> = {};
   if (updates.scheduledAt) updateFields.scheduled_at = updates.scheduledAt;
   if (updates.recipientPhone)
@@ -256,13 +269,27 @@ async function deliverAndUpdate(
   senderFirstName: string,
   twilioConfig: TwilioConfig,
   appBaseUrl: string,
+  appOpts: { privacyUrl: string },
 ) {
+  // Recipient may have opted out between schedule and delivery. Check now and
+  // cancel the row rather than sending — we never call Twilio for opted-out nums.
+  const optedOut = await getOptedOutPhones(supabase, [send.recipient_phone]);
+  if (optedOut.size > 0) {
+    const { error } = await supabase
+      .from("card_sends")
+      .update({ status: "canceled", error: "recipient_opted_out" })
+      .eq("id", send.id);
+    if (error) throw error;
+    return;
+  }
+
   const cardViewUrl = `${appBaseUrl}/s/${send.short_code}`;
   const result = await sendCardSms(
     twilioConfig,
     send.recipient_phone,
     senderFirstName,
     cardViewUrl,
+    appOpts.privacyUrl,
     { cardSendId: send.id },
   );
 
@@ -287,7 +314,9 @@ export async function sendNow(
   if (send.status !== "scheduled") return { error: "already_sent" as const };
 
   const senderFirstName = await fetchSenderFirstName(supabase, senderId);
-  await deliverAndUpdate(supabase, send, senderFirstName, twilioConfig, appBaseUrl);
+  await deliverAndUpdate(supabase, send, senderFirstName, twilioConfig, appBaseUrl, {
+    privacyUrl: `${appBaseUrl}/personvern`,
+  });
 
   const { data, error } = await supabase.from("card_sends").select("*").eq("id", sendId).single();
   if (error) throw error;
@@ -313,10 +342,13 @@ export async function sendGroupNow(
   if (!sends || sends.length === 0) return { error: "not_found" as const };
 
   const senderFirstName = await fetchSenderFirstName(supabase, senderId);
+  const privacyUrl = `${appBaseUrl}/personvern`;
 
   await Promise.all(
     sends.map((send) =>
-      deliverAndUpdate(supabase, send, senderFirstName, twilioConfig, appBaseUrl),
+      deliverAndUpdate(supabase, send, senderFirstName, twilioConfig, appBaseUrl, {
+        privacyUrl,
+      }),
     ),
   );
 
@@ -369,6 +401,18 @@ export async function updateSendGroup(
     const phonesToRemove = existingSends.filter((s) => !newPhones.has(s.recipient_phone));
     phonesToRemoveIds = phonesToRemove.map((s) => s.id);
     phonesToAdd = normalizedPhones.filter((p) => !existingPhones.has(p));
+  }
+
+  // Opt-out check: only the NEW recipients need checking. Existing ones in the
+  // group were cleared on their original send; removing them or keeping them is fine.
+  if (phonesToAdd.length > 0) {
+    const optedOut = await getOptedOutPhones(supabase, phonesToAdd);
+    if (optedOut.size > 0) {
+      return {
+        error: "recipients_opted_out" as const,
+        opted_out: Array.from(optedOut),
+      };
+    }
   }
 
   // Quota check: only rows we're inserting count; rows being canceled in the same
@@ -472,9 +516,25 @@ export async function processScheduledSends(supabase: SupabaseClient, config: Se
   if (fetchError) throw fetchError;
   if (!dueSends || dueSends.length === 0) return [];
 
+  // Recipients may have opted out between scheduling and now. Resolve the
+  // whole batch's opt-outs in one query rather than per-send.
+  const optedOut = await getOptedOutPhones(
+    supabase,
+    dueSends.map((s) => s.recipient_phone),
+  );
+
+  const privacyUrl = `${config.appBaseUrl}/personvern`;
   const processed = [];
 
   for (const send of dueSends) {
+    if (optedOut.has(send.recipient_phone)) {
+      await supabase
+        .from("card_sends")
+        .update({ status: "canceled", error: "recipient_opted_out" })
+        .eq("id", send.id);
+      continue;
+    }
+
     // 1. Send SMS via Twilio
     const { data: sender } = await supabase
       .from("users")
@@ -489,6 +549,7 @@ export async function processScheduledSends(supabase: SupabaseClient, config: Se
       send.recipient_phone,
       senderFirstName,
       cardViewUrl,
+      privacyUrl,
       { cardSendId: send.id },
     );
 

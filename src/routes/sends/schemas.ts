@@ -84,3 +84,10 @@ export const QuotaExceededSchema = Type.Object({
 });
 
 export type QuotaExceeded = Static<typeof QuotaExceededSchema>;
+
+export const RecipientsOptedOutSchema = Type.Object({
+  error: Type.String(),
+  opted_out: Type.Array(Type.String()),
+});
+
+export type RecipientsOptedOut = Static<typeof RecipientsOptedOutSchema>;

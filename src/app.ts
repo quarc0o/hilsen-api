@@ -16,6 +16,7 @@ import userRoutes from "./routes/users/index.js";
 import cardRoutes from "./routes/cards/index.js";
 import sendRoutes from "./routes/sends/index.js";
 import stickerRoutes from "./routes/stickers/index.js";
+import optOutRoutes from "./routes/opt-outs/index.js";
 
 export async function buildApp(envOverrides?: Record<string, string>) {
   const app = Fastify({
@@ -90,6 +91,7 @@ export async function buildApp(envOverrides?: Record<string, string>) {
   await app.register(cardRoutes, { prefix: "/cards" });
   await app.register(sendRoutes);
   await app.register(stickerRoutes, { prefix: "/stickers" });
+  await app.register(optOutRoutes);
 
   return app;
 }

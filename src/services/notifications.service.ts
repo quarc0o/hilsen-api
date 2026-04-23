@@ -31,6 +31,7 @@ export async function sendCardSms(
   recipientPhone: string,
   senderFirstName: string,
   cardViewUrl: string,
+  privacyUrl: string,
   context: SendCardSmsContext = {},
 ): Promise<SmsResult> {
   try {
@@ -39,7 +40,7 @@ export async function sendCardSms(
     const message = await twilioClient.messages.create({
       to: e164Phone,
       from: config.senderId,
-      body: `${senderFirstName} har sendt deg en hilsen. Se den her: ${cardViewUrl}`,
+      body: `${senderFirstName} har sendt deg en hilsen!\n\nÅpne: ${cardViewUrl}\n\nPersonvern og stopp SMS: ${privacyUrl}`,
     });
 
     return { success: true, messageSid: message.sid };
