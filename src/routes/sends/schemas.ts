@@ -3,6 +3,7 @@ import { Type, type Static } from "@sinclair/typebox";
 export enum SendStatusEnum {
   Scheduled = "scheduled",
   Sent = "sent",
+  Failed = "failed",
 }
 
 export const SendStatus = Type.Enum(SendStatusEnum);
@@ -17,6 +18,7 @@ export const CardSendSchema = Type.Object({
   scheduled_at: Type.Union([Type.String(), Type.Null()]),
   sent_at: Type.Union([Type.String(), Type.Null()]),
   opened_at: Type.Union([Type.String(), Type.Null()]),
+  error: Type.Union([Type.String(), Type.Null()]),
   created_at: Type.String(),
   card_backside_url: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   card_design_image_url: Type.Optional(Type.Union([Type.String(), Type.Null()])),

@@ -11,6 +11,7 @@ import {
 } from "./schemas.js";
 import {
   sendCard,
+  sendCardImmediate,
   getMySends,
   getReceivedSends,
   getSendById,
@@ -45,14 +46,23 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
-      const sends = await sendCard(fastify.supabase, request.userId, request.params.id, {
-        recipientPhones: request.body.recipient_phones,
-        scheduledAt: request.body.scheduled_at,
-      });
-
-      if (!request.body.scheduled_at) {
-        fastify.flushScheduledSends();
-      }
+      const sends = request.body.scheduled_at
+        ? await sendCard(fastify.supabase, request.userId, request.params.id, {
+            recipientPhones: request.body.recipient_phones,
+            scheduledAt: request.body.scheduled_at,
+          })
+        : await sendCardImmediate(
+            fastify.supabase,
+            request.userId,
+            request.params.id,
+            { recipientPhones: request.body.recipient_phones },
+            {
+              accountSid: fastify.config.TWILIO_ACCOUNT_SID,
+              authToken: fastify.config.TWILIO_AUTH_TOKEN,
+              senderId: fastify.config.TWILIO_SENDER_ID,
+            },
+            fastify.config.APP_BASE_URL,
+          );
 
       return reply.code(201).send(sends);
     },

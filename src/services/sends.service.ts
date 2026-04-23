@@ -10,7 +10,7 @@ export async function sendCard(
   supabase: SupabaseClient,
   senderId: string,
   cardId: string,
-  options: { recipientPhones: string[]; scheduledAt?: string },
+  options: { recipientPhones: string[]; scheduledAt: string },
 ) {
   const { recipientPhones, scheduledAt } = options;
 
@@ -22,7 +22,7 @@ export async function sendCard(
     recipient_phone: phone.replace(/^\+/, ""),
     send_group_id: sendGroupId,
     status: "scheduled",
-    scheduled_at: scheduledAt ?? new Date().toISOString(),
+    scheduled_at: scheduledAt,
     sent_at: null,
   }));
 
@@ -31,6 +31,55 @@ export async function sendCard(
   if (error) throw error;
 
   return sends;
+}
+
+export async function sendCardImmediate(
+  supabase: SupabaseClient,
+  senderId: string,
+  cardId: string,
+  options: { recipientPhones: string[] },
+  twilioConfig: TwilioConfig,
+  appBaseUrl: string,
+) {
+  const { recipientPhones } = options;
+  const sendGroupId = recipientPhones.length > 1 ? crypto.randomUUID() : null;
+
+  const { data: sender } = await supabase
+    .from("users")
+    .select("first_name")
+    .eq("id", senderId)
+    .single();
+  const senderFirstName = sender?.first_name ?? "Noen";
+
+  const now = new Date().toISOString();
+  const rows = await Promise.all(
+    recipientPhones.map(async (rawPhone) => {
+      const id = crypto.randomUUID();
+      const phone = rawPhone.replace(/^\+/, "");
+      const cardViewUrl = `${appBaseUrl}/s/${id}`;
+      const result = await sendCardSms(twilioConfig, phone, senderFirstName, cardViewUrl, {
+        cardSendId: id,
+      });
+
+      return {
+        id,
+        card_id: cardId,
+        sender_id: senderId,
+        recipient_phone: phone,
+        send_group_id: sendGroupId,
+        status: result.success ? "sent" : "failed",
+        scheduled_at: null,
+        sent_at: result.success ? now : null,
+        error: result.success ? null : (result.error ?? "Unknown error"),
+      };
+    }),
+  );
+
+  const { data, error } = await supabase.from("card_sends").insert(rows).select();
+
+  if (error) throw error;
+
+  return data;
 }
 
 export async function getReceivedSends(supabase: SupabaseClient, userId: string) {
@@ -291,9 +340,13 @@ export async function processScheduledSends(supabase: SupabaseClient, config: Se
       { cardSendId: send.id },
     );
 
-    // 2. If SMS fails, log error and continue
+    // 2. If SMS fails, mark row as failed with the Twilio error and continue
     if (!result.success) {
       console.error(`[scheduled-sends] SMS failed for send ${send.id}: ${result.error}`);
+      await supabase
+        .from("card_sends")
+        .update({ status: "failed", error: result.error ?? "Unknown error" })
+        .eq("id", send.id);
       continue;
     }
 
