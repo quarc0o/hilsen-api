@@ -91,3 +91,15 @@ export const RecipientsOptedOutSchema = Type.Object({
 });
 
 export type RecipientsOptedOut = Static<typeof RecipientsOptedOutSchema>;
+
+export const SendUsageSchema = Type.Object({
+  this_month: Type.Object({
+    used: Type.Integer(),
+    limit: Type.Integer(),
+    remaining: Type.Integer(),
+  }),
+  all_time: Type.Integer(),
+  resets_at: Type.String(),
+});
+
+export type SendUsage = Static<typeof SendUsageSchema>;

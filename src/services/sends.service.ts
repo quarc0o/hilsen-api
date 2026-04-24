@@ -22,6 +22,36 @@ export async function getMonthlySendUsage(supabase: SupabaseClient, senderId: st
   };
 }
 
+async function countAllTimeDelivered(supabase: SupabaseClient, senderId: string) {
+  // All-time stat is "actually delivered," so failed/scheduled/canceled are excluded.
+  // Differs from the monthly quota count, which includes scheduled (quota is claimed
+  // at schedule time, not at delivery time).
+  const { count, error } = await supabase
+    .from("card_sends")
+    .select("*", { count: "exact", head: true })
+    .eq("sender_id", senderId)
+    .eq("status", "sent");
+  if (error) throw error;
+  return count ?? 0;
+}
+
+function nextMonthStartUtc(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0)).toISOString();
+}
+
+export async function getSendUsage(supabase: SupabaseClient, senderId: string) {
+  const [thisMonth, allTime] = await Promise.all([
+    getMonthlySendUsage(supabase, senderId),
+    countAllTimeDelivered(supabase, senderId),
+  ]);
+  return {
+    this_month: thisMonth,
+    all_time: allTime,
+    resets_at: nextMonthStartUtc(),
+  };
+}
+
 export async function sendCard(
   supabase: SupabaseClient,
   senderId: string,

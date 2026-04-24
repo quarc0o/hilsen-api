@@ -12,6 +12,7 @@ import {
   UpdateSendGroupBodySchema,
   QuotaExceededSchema,
   RecipientsOptedOutSchema,
+  SendUsageSchema,
 } from "./schemas.js";
 import {
   sendCard,
@@ -27,6 +28,7 @@ import {
   updateSendGroup,
   cancelSendGroup,
   getMonthlySendUsage,
+  getSendUsage,
 } from "../../services/sends.service.js";
 import { getOptedOutPhones } from "../../services/opt-outs.service.js";
 import { getCardById } from "../../services/cards.service.js";
@@ -63,10 +65,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         return forbidden(reply);
       }
 
-      const optedOut = await getOptedOutPhones(
-        fastify.supabase,
-        request.body.recipient_phones,
-      );
+      const optedOut = await getOptedOutPhones(fastify.supabase, request.body.recipient_phones);
       if (optedOut.size > 0) {
         return reply.code(400).send({
           error: `${optedOut.size} mottaker(e) har reservert seg fra å motta SMS fra Hilsen. Fjern dem for å fortsette.`,
@@ -138,6 +137,24 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
     async (request) => {
       const sends = await getMySends(fastify.supabase, request.userId);
       return attachDesignImageUrls(sends);
+    },
+  );
+
+  // GET /sends/usage — monthly quota + lifetime delivered count.
+  // `this_month` counts scheduled+sent (what consumes quota); `all_time`
+  // counts only delivered sends. `resets_at` is the UTC start of next month.
+  fastify.get(
+    "/sends/usage",
+    {
+      preHandler: [fastify.authenticate],
+      schema: {
+        response: {
+          200: SendUsageSchema,
+        },
+      },
+    },
+    async (request) => {
+      return getSendUsage(fastify.supabase, request.userId);
     },
   );
 
