@@ -39,7 +39,7 @@ export async function sendDemoSms(
     const message = await twilioClient.messages.create({
       to: e164Phone,
       from: config.senderId,
-      body: `Dette er et eksempel fra Hilsen: slik kan du sende kort til venner og familie.\n\nSe kortet: ${cardViewUrl}\n\nOpprett en konto på hilsen.app for å lage dine egne.\n\nPersonvern og stopp SMS: ${privacyUrl}`,
+      body: `Dette er et eksempel på en Hilsen.\n\nSe kortet: ${cardViewUrl}\n\nLast ned appen og send din første Hilsen i dag!\n\nPersonvern og stopp SMS: ${privacyUrl}`,
     });
     return { success: true, messageSid: message.sid };
   } catch (err) {
