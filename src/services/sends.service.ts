@@ -7,7 +7,17 @@ export interface SendsWorkerConfig {
   appBaseUrl: string;
 }
 
-export const MONTHLY_SEND_LIMIT = 3;
+export const MONTHLY_SEND_LIMIT = 5;
+
+export async function getUserBanStatus(supabase: SupabaseClient, userId: string) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("banned_at")
+    .eq("id", userId)
+    .single();
+  if (error) throw error;
+  return { banned: data.banned_at !== null };
+}
 
 export async function getMonthlySendUsage(supabase: SupabaseClient, senderId: string) {
   const { data, error } = await supabase.rpc("count_card_sends_this_month", {
@@ -236,6 +246,9 @@ export async function updateScheduledSend(
   if (send.sender_id !== senderId) return { error: "forbidden" as const };
   if (send.status !== "scheduled") return { error: "already_sent" as const };
 
+  const { banned } = await getUserBanStatus(supabase, senderId);
+  if (banned) return { error: "banned" as const };
+
   // If recipient_phones provided, expand into a group
   if (updates.recipientPhones) {
     const sendGroupId = send.send_group_id ?? crypto.randomUUID();
@@ -343,6 +356,9 @@ export async function sendNow(
   if (send.sender_id !== senderId) return { error: "forbidden" as const };
   if (send.status !== "scheduled") return { error: "already_sent" as const };
 
+  const { banned } = await getUserBanStatus(supabase, senderId);
+  if (banned) return { error: "banned" as const };
+
   const senderFirstName = await fetchSenderFirstName(supabase, senderId);
   await deliverAndUpdate(supabase, send, senderFirstName, twilioConfig, appBaseUrl, {
     privacyUrl: `${appBaseUrl}/personvern`,
@@ -370,6 +386,9 @@ export async function sendGroupNow(
 
   if (fetchError) throw fetchError;
   if (!sends || sends.length === 0) return { error: "not_found" as const };
+
+  const { banned } = await getUserBanStatus(supabase, senderId);
+  if (banned) return { error: "banned" as const };
 
   const senderFirstName = await fetchSenderFirstName(supabase, senderId);
   const privacyUrl = `${appBaseUrl}/personvern`;
@@ -419,6 +438,9 @@ export async function updateSendGroup(
 
   if (fetchError) throw fetchError;
   if (!existingSends || existingSends.length === 0) return { error: "not_found" as const };
+
+  const { banned } = await getUserBanStatus(supabase, senderId);
+  if (banned) return { error: "banned" as const };
 
   // Compute the recipient diff up front so we can quota-check before any writes.
   let phonesToRemoveIds: string[] = [];
@@ -553,10 +575,28 @@ export async function processScheduledSends(supabase: SupabaseClient, config: Se
     dueSends.map((s) => s.recipient_phone),
   );
 
+  // Senders may have been banned between scheduling and now. Batch-resolve.
+  const uniqueSenderIds = Array.from(new Set(dueSends.map((s) => s.sender_id)));
+  const { data: bannedSenders, error: banError } = await supabase
+    .from("users")
+    .select("id")
+    .in("id", uniqueSenderIds)
+    .not("banned_at", "is", null);
+  if (banError) throw banError;
+  const bannedSenderIds = new Set((bannedSenders ?? []).map((r) => r.id as string));
+
   const privacyUrl = `${config.appBaseUrl}/personvern`;
   const processed = [];
 
   for (const send of dueSends) {
+    if (bannedSenderIds.has(send.sender_id)) {
+      await supabase
+        .from("card_sends")
+        .update({ status: "canceled", error: "sender_banned" })
+        .eq("id", send.id);
+      continue;
+    }
+
     if (optedOut.has(send.recipient_phone)) {
       await supabase
         .from("card_sends")

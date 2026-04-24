@@ -29,6 +29,7 @@ import {
   cancelSendGroup,
   getMonthlySendUsage,
   getSendUsage,
+  getUserBanStatus,
 } from "../../services/sends.service.js";
 import { getOptedOutPhones } from "../../services/opt-outs.service.js";
 import { getCardById } from "../../services/cards.service.js";
@@ -64,6 +65,9 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (card.creator_id !== request.userId) {
         return forbidden(reply);
       }
+
+      const { banned } = await getUserBanStatus(fastify.supabase, request.userId);
+      if (banned) return forbidden(reply, "Kontoen er sperret.");
 
       const optedOut = await getOptedOutPhones(fastify.supabase, request.body.recipient_phones);
       if (optedOut.size > 0) {
@@ -311,6 +315,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (result.error === "not_found") return notFound(reply, "Send not found");
       if (result.error === "forbidden") return forbidden(reply);
       if (result.error === "already_sent") return badRequest(reply, "Send has already been sent");
+      if (result.error === "banned") return forbidden(reply, "Kontoen er sperret.");
       if (result.error === "recipients_opted_out") {
         return reply.code(400).send({
           error: `${result.opted_out.length} mottaker(e) har reservert seg fra å motta SMS fra Hilsen. Fjern dem for å fortsette.`,
@@ -379,6 +384,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       );
 
       if (result.error === "not_found") return notFound(reply, "Send group not found");
+      if (result.error === "banned") return forbidden(reply, "Kontoen er sperret.");
       if (result.error === "recipients_opted_out") {
         return reply.code(400).send({
           error: `${result.opted_out.length} mottaker(e) har reservert seg fra å motta SMS fra Hilsen. Fjern dem for å fortsette.`,
@@ -450,6 +456,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (result.error === "not_found") return notFound(reply, "Send not found");
       if (result.error === "forbidden") return forbidden(reply);
       if (result.error === "already_sent") return badRequest(reply, "Send has already been sent");
+      if (result.error === "banned") return forbidden(reply, "Kontoen er sperret.");
 
       return result.data;
     },
@@ -481,6 +488,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       );
 
       if (result.error === "not_found") return notFound(reply, "Send group not found");
+      if (result.error === "banned") return forbidden(reply, "Kontoen er sperret.");
 
       return result.data;
     },
