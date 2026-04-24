@@ -217,7 +217,7 @@ export async function getSendById(supabase: SupabaseClient, sendId: string) {
 export async function getSendByShortCode(supabase: SupabaseClient, shortCode: string) {
   const { data, error } = await supabase
     .from("card_sends")
-    .select("*, greeting_cards(design_id), users!card_sends_sender_id_fkey(first_name)")
+    .select("*, greeting_cards(design_id, message), users!card_sends_sender_id_fkey(first_name)")
     .eq("short_code", shortCode)
     .single();
 
@@ -228,9 +228,11 @@ export async function getSendByShortCode(supabase: SupabaseClient, shortCode: st
   if (error) throw error;
 
   const { greeting_cards, users, ...send } = data;
+  const card = greeting_cards as { design_id: string | null; message: string | null } | null;
   return {
     ...send,
-    card_design_id: (greeting_cards as { design_id: string | null } | null)?.design_id ?? null,
+    card_design_id: card?.design_id ?? null,
+    message: card?.message ?? null,
     sender_first_name: (users as { first_name: string | null } | null)?.first_name ?? null,
   };
 }
