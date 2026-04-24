@@ -26,6 +26,34 @@ function getClient(config: TwilioConfig): twilio.Twilio {
   return client;
 }
 
+export async function sendDemoSms(
+  config: TwilioConfig,
+  recipientPhone: string,
+  cardViewUrl: string,
+  privacyUrl: string,
+  context: SendCardSmsContext = {},
+): Promise<SmsResult> {
+  try {
+    const twilioClient = getClient(config);
+    const e164Phone = `+${recipientPhone.replace(/^\+/, "")}`;
+    const message = await twilioClient.messages.create({
+      to: e164Phone,
+      from: config.senderId,
+      body: `Dette er et eksempel fra Hilsen: slik kan du sende kort til venner og familie.\n\nSe kortet: ${cardViewUrl}\n\nOpprett en konto på hilsen.app for å lage dine egne.\n\nPersonvern og stopp SMS: ${privacyUrl}`,
+    });
+    return { success: true, messageSid: message.sid };
+  } catch (err) {
+    const twilioErr = err as { code?: number | string; status?: number | string };
+    captureWithTags(err, {
+      "twilio.error_code": twilioErr.code,
+      "twilio.status": twilioErr.status,
+      card_send_id: context.cardSendId,
+    });
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    return { success: false, error: errorMessage };
+  }
+}
+
 export async function sendCardSms(
   config: TwilioConfig,
   recipientPhone: string,

@@ -21,6 +21,9 @@ export interface EnvConfig {
   POSTHOG_HOST?: string;
   POSTHOG_PROJECT_ID?: string;
   POSTHOG_PERSONAL_API_KEY?: string;
+  DEMO_USER_ID: string;
+  DEMO_CARD_ID: string;
+  DEMO_DAILY_CAP: number;
 }
 
 declare module "fastify" {
@@ -103,6 +106,18 @@ export const envSchema = {
     },
     POSTHOG_PERSONAL_API_KEY: {
       type: "string" as const,
+    },
+    DEMO_USER_ID: {
+      type: "string" as const,
+      default: "00000000-0000-4000-8000-000000000001",
+    },
+    DEMO_CARD_ID: {
+      type: "string" as const,
+      default: "00000000-0000-4000-8000-000000000002",
+    },
+    DEMO_DAILY_CAP: {
+      type: "number" as const,
+      default: 100,
     },
   },
 };
