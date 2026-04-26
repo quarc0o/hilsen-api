@@ -7,7 +7,7 @@ export interface SendsWorkerConfig {
   appBaseUrl: string;
 }
 
-export const MONTHLY_SEND_LIMIT = 5;
+export const MONTHLY_SEND_LIMIT = 15;
 
 export async function getUserBanStatus(supabase: SupabaseClient, userId: string) {
   const { data, error } = await supabase
