@@ -15,7 +15,7 @@ const templateRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.post(
     "/",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         consumes: ["multipart/form-data"],
         // body schema omitted — multipart bypasses Fastify's JSON body validator;

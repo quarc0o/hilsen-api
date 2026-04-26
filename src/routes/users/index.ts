@@ -1,7 +1,14 @@
 import { type FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { UserSchema, UpdateUserBodySchema } from "./schemas.js";
-import { getUserById, updateUser, deleteUser } from "../../services/users.service.js";
-import { notFound } from "../../lib/errors.js";
+import {
+  getUserById,
+  updateUser,
+  deleteUser,
+  markAgeVerified,
+  blockAndDeleteUser,
+  MIN_AGE,
+} from "../../services/users.service.js";
+import { notFound, forbidden } from "../../lib/errors.js";
 import { getPostHogConfig } from "../../lib/posthog.js";
 
 const userRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
@@ -35,8 +42,42 @@ const userRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
         },
       },
     },
-    async (request) => {
-      return updateUser(fastify.supabase, request.userId, request.body);
+    async (request, reply) => {
+      const { age, ...profileUpdates } = request.body;
+
+      if (age !== undefined) {
+        const currentUser = await getUserById(fastify.supabase, request.userId);
+        if (!currentUser) return notFound(reply, "User not found");
+        if (currentUser.age_verified_at) {
+          return forbidden(reply, "age_already_verified");
+        }
+
+        if (age < MIN_AGE) {
+          await blockAndDeleteUser({
+            supabase: fastify.supabase,
+            userId: request.userId,
+            supabaseId: request.supabaseId,
+            posthog: getPostHogConfig(fastify.config),
+            reason: "underage",
+            onWarning: (message, detail) => {
+              fastify.log.warn(detail, message);
+              request.captureException(new Error(message), {
+                "delete.user_id": request.userId,
+                "delete.cause": "underage",
+              });
+            },
+          });
+          return forbidden(reply, "age_ineligible");
+        }
+
+        await markAgeVerified(fastify.supabase, request.userId);
+      }
+
+      if (Object.keys(profileUpdates).length === 0) {
+        return getUserById(fastify.supabase, request.userId);
+      }
+
+      return updateUser(fastify.supabase, request.userId, profileUpdates);
     },
   );
 

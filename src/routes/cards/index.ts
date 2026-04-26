@@ -19,7 +19,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.post(
     "/",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         body: CreateCardBodySchema,
         response: {
@@ -36,7 +36,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.get(
     "/mine",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         response: {
           200: Type.Array(CardSchema),
@@ -71,7 +71,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.patch(
     "/:id",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: CardIdParamsSchema,
         body: UpdateCardBodySchema,
@@ -95,7 +95,7 @@ const cardRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.delete(
     "/:id",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: CardIdParamsSchema,
       },

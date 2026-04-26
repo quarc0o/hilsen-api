@@ -46,7 +46,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.post(
     "/cards/:id/send",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: SendCardParamsSchema,
         body: SendCardBodySchema,
@@ -131,7 +131,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.get(
     "/sends/mine",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         response: {
           200: Type.Array(CardSendSchema),
@@ -150,7 +150,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.get(
     "/sends/usage",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         response: {
           200: SendUsageSchema,
@@ -166,7 +166,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.get(
     "/sends/received",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         response: {
           200: Type.Array(CardSendSchema),
@@ -186,7 +186,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.get(
     "/sends/:id",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: SendIdParamsSchema,
         response: {
@@ -289,7 +289,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.patch(
     "/sends/:id",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: SendIdParamsSchema,
         body: UpdateSendBodySchema,
@@ -341,7 +341,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.delete(
     "/sends/:id",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: SendIdParamsSchema,
       },
@@ -361,7 +361,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.patch(
     "/send-groups/:groupId",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: SendGroupIdParamsSchema,
         body: UpdateSendGroupBodySchema,
@@ -410,7 +410,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.delete(
     "/send-groups/:groupId",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: SendGroupIdParamsSchema,
       },
@@ -432,7 +432,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.post(
     "/sends/:id/send-now",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: SendIdParamsSchema,
         response: {
@@ -466,7 +466,7 @@ const sendRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
   fastify.post(
     "/send-groups/:groupId/send-now",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.requireAgeVerified],
       schema: {
         params: SendGroupIdParamsSchema,
         response: {

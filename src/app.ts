@@ -18,6 +18,7 @@ import sendRoutes from "./routes/sends/index.js";
 import stickerRoutes from "./routes/stickers/index.js";
 import optOutRoutes from "./routes/opt-outs/index.js";
 import demoSendRoutes from "./routes/demo-sends/index.js";
+import reportRoutes from "./routes/reports/index.js";
 
 export async function buildApp(envOverrides?: Record<string, string>) {
   const app = Fastify({
@@ -94,6 +95,7 @@ export async function buildApp(envOverrides?: Record<string, string>) {
   await app.register(stickerRoutes, { prefix: "/stickers" });
   await app.register(optOutRoutes);
   await app.register(demoSendRoutes);
+  await app.register(reportRoutes);
 
   return app;
 }

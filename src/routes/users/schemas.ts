@@ -7,6 +7,7 @@ export const UserSchema = Type.Object({
   email: Type.Union([Type.String(), Type.Null()]),
   first_name: Type.Union([Type.String(), Type.Null()]),
   last_name: Type.Union([Type.String(), Type.Null()]),
+  age_verified_at: Type.Union([Type.String(), Type.Null()]),
   created_at: Type.String(),
 });
 
@@ -18,6 +19,7 @@ export const UpdateUserBodySchema = Type.Object({
     Type.Union([Type.String({ minLength: 1, maxLength: 100 }), Type.Null()]),
   ),
   email: Type.Optional(Type.Union([Type.String({ format: "email" }), Type.Null()])),
+  age: Type.Optional(Type.Integer({ minimum: 0, maximum: 120 })),
 });
 
 export type UpdateUserBody = Static<typeof UpdateUserBodySchema>;

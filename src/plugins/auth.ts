@@ -6,6 +6,7 @@ import { type FastifyInstance, type FastifyRequest, type FastifyReply } from "fa
 declare module "fastify" {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    requireAgeVerified: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 
@@ -28,6 +29,7 @@ declare module "fastify" {
   interface FastifyRequest {
     userId: string;
     supabaseId: string;
+    ageVerifiedAt: string | null;
   }
 }
 
@@ -71,7 +73,7 @@ export default fp(
       // Look up user by supabase_id
       let { data: user, error } = await fastify.supabase
         .from("users")
-        .select("id")
+        .select("id, age_verified_at")
         .eq("supabase_id", supabaseId)
         .single();
 
@@ -82,11 +84,26 @@ export default fp(
         const rawPhone = authUser?.user?.phone ?? null;
         const phone = rawPhone ? rawPhone.replace(/^\+/, "") : null;
 
+        // Hard stop: this phone has been blocked (e.g. underage signup).
+        // The DB trigger normally rejects at OTP time; this is the
+        // belt-and-braces check for the lazy auto-create path.
+        if (phone) {
+          const { data: block } = await fastify.supabase
+            .from("auth_blocks")
+            .select("phone_number")
+            .eq("phone_number", phone)
+            .maybeSingle();
+          if (block) {
+            reply.code(401).send({ error: "Unauthorized" });
+            return;
+          }
+        }
+
         // Check if a lazy user (created via invite) exists with this phone
         if (phone) {
           const { data: lazyUser } = await fastify.supabase
             .from("users")
-            .select("id")
+            .select("id, age_verified_at")
             .eq("phone_number", phone)
             .is("supabase_id", null)
             .single();
@@ -97,12 +114,13 @@ export default fp(
               .from("users")
               .update({ supabase_id: supabaseId })
               .eq("id", lazyUser.id)
-              .select("id")
+              .select("id, age_verified_at")
               .single();
 
             if (!linkError && linked) {
               request.userId = linked.id;
               request.supabaseId = supabaseId;
+              request.ageVerifiedAt = linked.age_verified_at;
               return;
             }
           }
@@ -112,7 +130,7 @@ export default fp(
         const { data: newUser, error: createError } = await fastify.supabase
           .from("users")
           .insert({ supabase_id: supabaseId, phone_number: phone })
-          .select("id")
+          .select("id, age_verified_at")
           .single();
 
         if (createError || !newUser) {
@@ -129,10 +147,21 @@ export default fp(
 
       request.userId = user.id;
       request.supabaseId = supabaseId;
+      request.ageVerifiedAt = user.age_verified_at;
     });
+
+    fastify.decorate(
+      "requireAgeVerified",
+      async function (request: FastifyRequest, reply: FastifyReply) {
+        if (!request.ageVerifiedAt) {
+          reply.code(403).send({ error: "age_verification_required" });
+        }
+      },
+    );
 
     fastify.decorateRequest("userId", "");
     fastify.decorateRequest("supabaseId", "");
+    fastify.decorateRequest("ageVerifiedAt", null);
   },
   { name: "auth", dependencies: ["supabase", "sentry"] },
 );

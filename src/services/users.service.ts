@@ -1,6 +1,12 @@
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { deletePostHogPerson, type PostHogConfig } from "../lib/posthog.js";
 
+// Minimum age to use the service. See docs/privacy notes:
+// 13 matches Norwegian Personal Data Act § 5 (digital age of consent
+// for information society services) and the floor allowed by GDPR
+// Article 8. COPPA also kicks in below this in the US.
+export const MIN_AGE = 13;
+
 export async function getUserById(supabase: SupabaseClient, userId: string) {
   const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
 
@@ -41,6 +47,49 @@ export async function updateUser(
 
   if (error) throw error;
   return data;
+}
+
+export async function markAgeVerified(supabase: SupabaseClient, userId: string) {
+  const { data, error } = await supabase
+    .from("users")
+    .update({ age_verified_at: new Date().toISOString() })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Block-first deletion: insert the phone into auth_blocks before
+// running the standard delete cascade. If the block insert fails we
+// abort, leaving the user able to retry. If the delete fails after
+// the block is in place, the user is stuck on a half-deleted account
+// but can't re-OTP back in — recoverable manually, never silently
+// permissive.
+export async function blockAndDeleteUser(
+  deps: DeleteUserDeps & { reason: "underage" | "banned" | "abuse" },
+): Promise<void> {
+  const { supabase, userId, reason } = deps;
+
+  const { data: user, error: readError } = await supabase
+    .from("users")
+    .select("phone_number")
+    .eq("id", userId)
+    .single();
+  if (readError) throw readError;
+
+  if (user?.phone_number) {
+    const { error: blockError } = await supabase
+      .from("auth_blocks")
+      .upsert(
+        { phone_number: user.phone_number, reason },
+        { onConflict: "phone_number", ignoreDuplicates: true },
+      );
+    if (blockError) throw blockError;
+  }
+
+  await deleteUser(deps);
 }
 
 export interface DeleteUserDeps {
