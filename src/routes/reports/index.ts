@@ -35,9 +35,31 @@ const reportRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       },
     },
     async (request, reply) => {
+      // Optional auth: capture reporter_id when a valid Bearer token is
+      // present so the reporter's own inbox can hide the card. Anonymous
+      // reports (from the public short-link page) still work without a
+      // token, just without the inbox-hide side effect.
+      let reporterId: string | null = null;
+      const authHeader = request.headers.authorization;
+      if (authHeader?.startsWith("Bearer ")) {
+        try {
+          await request.jwtVerify();
+          const supabaseId = request.user.sub;
+          const { data: user } = await fastify.supabase
+            .from("users")
+            .select("id")
+            .eq("supabase_id", supabaseId)
+            .maybeSingle();
+          if (user) reporterId = user.id;
+        } catch {
+          // Invalid/expired token — fall through and treat as anonymous.
+        }
+      }
+
       const result = await createCardReport(fastify.supabase, {
         sendId: request.body.send_id,
         reason: request.body.reason,
+        reporterId,
       });
       if (!result.ok) {
         return notFound(reply, "Send not found");

@@ -164,18 +164,27 @@ export async function getReceivedSends(supabase: SupabaseClient, userId: string)
   if (userError) throw userError;
   if (!user?.phone_number) return [];
 
-  const { data, error } = await supabase
-    .from("card_sends")
-    .select("*, greeting_cards(design_id)")
-    .eq("recipient_phone", user.phone_number)
-    .eq("status", "sent")
-    .order("created_at", { ascending: false });
+  const [{ data, error }, { data: reportedRows, error: reportError }] = await Promise.all([
+    supabase
+      .from("card_sends")
+      .select("*, greeting_cards(design_id)")
+      .eq("recipient_phone", user.phone_number)
+      .eq("status", "sent")
+      .order("created_at", { ascending: false }),
+    supabase.from("card_reports").select("card_send_id").eq("reporter_id", userId),
+  ]);
 
   if (error) throw error;
-  return (data ?? []).map(({ greeting_cards, ...send }) => ({
-    ...send,
-    card_design_id: (greeting_cards as { design_id: string | null } | null)?.design_id ?? null,
-  }));
+  if (reportError) throw reportError;
+
+  const hiddenSendIds = new Set((reportedRows ?? []).map((r) => r.card_send_id as string));
+
+  return (data ?? [])
+    .filter((send) => !hiddenSendIds.has(send.id))
+    .map(({ greeting_cards, ...send }) => ({
+      ...send,
+      card_design_id: (greeting_cards as { design_id: string | null } | null)?.design_id ?? null,
+    }));
 }
 
 export async function getMySends(supabase: SupabaseClient, userId: string) {
