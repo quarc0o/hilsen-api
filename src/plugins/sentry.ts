@@ -57,7 +57,10 @@ export default fp(
       if (statusCode >= 500) {
         captureWithRequestScope(request, err);
       }
-      reply.send(err);
+      reply.code(statusCode).type("application/json").send({
+        error: err.message,
+        statusCode,
+      });
     });
   },
   { name: "sentry", dependencies: ["@fastify/env"] },
