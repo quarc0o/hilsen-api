@@ -48,29 +48,32 @@ const userRoutes: FastifyPluginAsyncTypebox = async (fastify) => {
       if (age !== undefined) {
         const currentUser = await getUserById(fastify.supabase, request.userId);
         if (!currentUser) return notFound(reply, "User not found");
-        if (currentUser.age_verified_at) {
-          return forbidden(reply, "age_already_verified");
-        }
 
-        if (age < MIN_AGE) {
-          await blockAndDeleteUser({
-            supabase: fastify.supabase,
-            userId: request.userId,
-            supabaseId: request.supabaseId,
-            posthog: getPostHogConfig(fastify.config),
-            reason: "underage",
-            onWarning: (message, detail) => {
-              fastify.log.warn(detail, message);
-              request.captureException(new Error(message), {
-                "delete.user_id": request.userId,
-                "delete.cause": "underage",
-              });
-            },
-          });
-          return forbidden(reply, "age_ineligible");
-        }
+        // Verification is a one-time stamp. Silently ignore the age field
+        // for already-verified users — the client may resend it on a
+        // re-shown onboarding screen, and there's no security gain in
+        // erroring (the existing verification can't be downgraded).
+        if (!currentUser.age_verified_at) {
+          if (age < MIN_AGE) {
+            await blockAndDeleteUser({
+              supabase: fastify.supabase,
+              userId: request.userId,
+              supabaseId: request.supabaseId,
+              posthog: getPostHogConfig(fastify.config),
+              reason: "underage",
+              onWarning: (message, detail) => {
+                fastify.log.warn(detail, message);
+                request.captureException(new Error(message), {
+                  "delete.user_id": request.userId,
+                  "delete.cause": "underage",
+                });
+              },
+            });
+            return forbidden(reply, "age_ineligible");
+          }
 
-        await markAgeVerified(fastify.supabase, request.userId);
+          await markAgeVerified(fastify.supabase, request.userId);
+        }
       }
 
       if (Object.keys(profileUpdates).length === 0) {
